@@ -1,0 +1,7 @@
+{
+  "serviceName": "Loss Prevention Service",
+  "loggingLevel": "debug",
+  "telemetryEndpoint": "",
+  "telemetryDataStoreName": "",
+  "port": "8080"
+}
