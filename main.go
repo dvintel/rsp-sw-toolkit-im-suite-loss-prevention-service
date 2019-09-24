@@ -20,9 +20,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/edgexfoundry/app-functions-sdk-go/pkg/transforms"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
+	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/lossprevention"
+	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/camera"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+	"strings"
 
 	"os"
 	"time"
@@ -42,13 +47,13 @@ const (
 )
 
 const (
-	todo = "TODO"
+	inventoryEvent = "inventory_event"
 )
 
 var (
 	// Filter data by value descriptors (aka device resource name)
 	valueDescriptors = []string{
-		todo,
+		inventoryEvent,
 	}
 )
 
@@ -71,6 +76,22 @@ func main() {
 
 	// Connect to EdgeX zeroMQ bus
 	receiveZMQEvents()
+
+	ticker := time.NewTicker(10 * time.Second)
+
+	for {
+		select {
+		case t := <-ticker.C:
+			logrus.Debugf("ticker %+v", t)
+			logrus.Debugf("recording from camera")
+			filename := fmt.Sprintf("/recordings/test_%v.avi", helper.UnixMilliNow())
+			logrus.Debugf("recording filename: %s", filename)
+			if err := camera.RecordVideoToDisk(0, 2, filename); err != nil {
+				log.Errorf("error: %+v", err)
+			}
+			logrus.Debugf("finished recording")
+		}
+	}
 
 	log.WithField("Method", "main").Info("Completed.")
 
@@ -128,9 +149,22 @@ func processEvents(edgexcontext *appcontext.Context, params ...interface{}) (boo
 
 	for _, reading := range event.Readings {
 		switch reading.Name {
-		case todo:
-			logrus.Debugf("todo data received: %s", string(reading.Value))
-			break
+		case inventoryEvent:
+			logrus.Debugf("inventoryEvent data received: %s", string(reading.Value))
+
+			payload := new(lossprevention.DataPayload)
+
+			decoder := json.NewDecoder(strings.NewReader(reading.Value))
+			decoder.UseNumber()
+
+			if err := decoder.Decode(payload); err != nil {
+				errorHandler("error decoding jsonrpc messaage", err, nil)
+				return false, err
+			}
+
+			if err := lossprevention.HandleDataPayload(payload); err != nil {
+				return false, err
+			}
 		}
 	}
 

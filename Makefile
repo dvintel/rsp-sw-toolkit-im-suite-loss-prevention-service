@@ -1,11 +1,14 @@
 
-STACK_NAME ?= Inventory-Suite-Dev
 SERVICE_NAME ?= loss-prevention
 PROJECT_NAME ?= loss-prevention-service
 
-default: build
+GIT_SHA = $(shell git rev-parse HEAD)
 
-scale = docker service scale $(STACK_NAME)_$(SERVICE_NAME)=$1 $2
+trap_ctrl_c = trap 'exit 0' INT;
+
+compose = docker-compose
+
+get_id = `docker ps -qf name=$(SERVICE_NAME)_1`
 
 wait_for_service =	@printf "Waiting for $(SERVICE_NAME) service to$1..."; \
 					while [  $2 -z $(get_id) ]; \
@@ -15,58 +18,52 @@ wait_for_service =	@printf "Waiting for $(SERVICE_NAME) service to$1..."; \
                  	done; \
                  	printf "\n";
 
-trap_ctrl_c = trap 'exit 0' INT;
-
-get_id = `docker ps -qf name=$(STACK_NAME)_$(SERVICE_NAME).1`
-
-log = docker logs $1$2 $(get_id) 2>&1
+log = docker-compose logs $1$2 2>&1
 
 test =	echo "Go Testing..."; \
 		go test ./... $1
 
+.PHONY: build
+
+default: build
+
 build:
-	$(MAKE) -C .. $(PROJECT_NAME)
+	docker build --rm \
+		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
+		--build-arg http_proxy=$(http_proxy) \
+		--build-arg https_proxy=$(https_proxy) \
+		-f Dockerfile_dev \
+		--label "git_sha=$(GIT_SHA)" \
+		-t rsp/$(PROJECT_NAME):dev \
+		.
 
 iterate:
-	$(call scale,0,-d)
+	$(compose) down &
 	$(MAKE) build
 	# make sure it has stopped before we try and start it again
 	$(call wait_for_service, stop, !)
-	$(call scale,1,-d)
+	$(compose) up -d
 	$(call wait_for_service, start)
 	$(MAKE) tail
 
 restart:
-	$(call scale,0,-d)
+	$(compose) down
 	$(call wait_for_service, stop, !)
-	$(call scale,1,-d)
+	$(compose) up -d
 	$(call wait_for_service, start)
 
 tail:
 	$(trap_ctrl_c) $(call log,-f --tail 10,$(args))
 
 stop:
-	$(call scale,0,$(args))
+	$(compose) down --remove-orphans
+
+down: stop
 
 start:
-	$(call scale,1,$(args))
+	$(compose) up -d $(args)
 
-stop-d:
-	$(call scale,0,-d)
-
-start-d:
-	$(call scale,1,-d)
-
-wait-stop:
-	$(call scale,0,-d)
-	$(call wait_for_service, stop, !)
-
-wait-start:
-	$(call scale,1,-d)
-	$(call wait_for_service, start)
-
-scale:
-	$(call scale,$(n),$(args))
+up: start
 
 fmt:
 	go fmt ./...
@@ -76,4 +73,7 @@ test:
 
 force-test:
 	@$(call test,-count=1)
+
+ps:
+	$(compose) ps
 

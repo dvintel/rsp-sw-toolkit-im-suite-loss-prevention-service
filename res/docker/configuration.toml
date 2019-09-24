@@ -1,5 +1,5 @@
 [Writable]
-LogLevel = 'INFO'
+LogLevel = 'DEBUG'
 
 [Service]
 BootTimeout = 30000
@@ -36,8 +36,8 @@ Type = 'zero'
         Protocol = 'tcp'
 
 [Logging]
-EnableRemote = true
+EnableRemote = false
 
 [Binding]
- Type="messagebus"
- SubscribeTopic=""
+Type="messagebus"
+SubscribeTopic=""

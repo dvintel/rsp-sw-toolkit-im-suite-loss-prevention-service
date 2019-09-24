@@ -1,0 +1,44 @@
+version: '3.4'
+
+volumes:
+  video-recordings:
+
+networks:
+  main-net:
+
+services:
+  loss-prevention:
+    image: rsp/loss-prevention-service:dev
+    networks:
+      - main-net
+    extra_hosts:
+      - "edgex-core-data:172.17.0.1"
+      - "edgex-support-logging:172.17.0.1"
+      - "edgex-core-consul:172.17.0.1"
+    logging:
+      options:
+        max-size: "100m"
+        max-file: "5"
+    environment:
+      loggingLevel: "debug"
+      telemetryEndpoint: ""
+      telemetryDataStoreName: ""
+      serviceName : "Loss Prevention Example App"
+      OPENCV_LOG_LEVEL: "DEBUG"
+      OPENCV_VIDEOIO_DEBUG: "1"
+      port: "8080"
+    volumes:
+      - ./recordings:/recordings
+    devices:
+      - /dev/video0:/dev/video0
+
+  nginx:
+    image: nginx
+    networks:
+      - main-net
+    logging:
+      options:
+        max-size: "100m"
+        max-file: "5"
+    volumes:
+      - ./recordings:/recordings
