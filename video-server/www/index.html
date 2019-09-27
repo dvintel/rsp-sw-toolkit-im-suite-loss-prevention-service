@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Loss Prevention Demo</title>
+
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.5.6/plyr.css" />
+</head>
+<body>
+  <p>Hello World From video server!</p>
+
+  <div style="width: 640px; height: 480px">
+    <video id="player" playsinline controls>
+      <source src="/recordings/test_1569525505957.webm" type="video/webm" />
+    </video>
+  </div>
+
+  <script src="https://cdn.plyr.io/3.5.6/plyr.polyfilled.js"></script>
+<script>
+  const player = new Plyr('#player', {
+      /* options */
+  });
+</script>
+</body>
+</html>

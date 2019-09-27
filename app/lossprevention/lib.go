@@ -31,7 +31,7 @@ const (
 
 	videoDevice      = 0
 	seconds          = 15
-	videoFilePattern = "/recordings/recording_%s_%v.avi"
+	videoFilePattern = "/recordings/recording_%s_%v.webm"
 )
 
 func HandleDataPayload(payload *DataPayload) error {

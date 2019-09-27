@@ -47,3 +47,5 @@ vendor/github.impcloud.net/RSP-Inventory-Suite/**/Jenkinsfile
 vendor/github.impcloud.net/RSP-Inventory-Suite/utilities/configuration/testData
 
 go.sum
+
+recordings/

@@ -75,26 +75,32 @@ func main() {
 	}).Info("Starting Loss Prevention Service...")
 
 	// Connect to EdgeX zeroMQ bus
-	receiveZMQEvents()
+	//receiveZMQEvents()
 
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(60 * time.Second)
+
+	go recordIt(time.Now())
 
 	for {
 		select {
 		case t := <-ticker.C:
-			logrus.Debugf("ticker %+v", t)
-			logrus.Debugf("recording from camera")
-			filename := fmt.Sprintf("/recordings/test_%v.avi", helper.UnixMilliNow())
-			logrus.Debugf("recording filename: %s", filename)
-			if err := camera.RecordVideoToDisk(0, 2, filename); err != nil {
-				log.Errorf("error: %+v", err)
-			}
-			logrus.Debugf("finished recording")
+			go recordIt(t)
 		}
 	}
 
 	log.WithField("Method", "main").Info("Completed.")
 
+}
+
+func recordIt(t time.Time) {
+	logrus.Debugf("ticker %+v", t)
+	logrus.Debugf("recording from camera")
+	filename := fmt.Sprintf("/recordings/test_%v.avi", helper.UnixMilliNow())
+	logrus.Debugf("recording filename: %s", filename)
+	if err := camera.RecordVideoToDisk(0, 5, filename); err != nil {
+		log.Errorf("error: %+v", err)
+	}
+	logrus.Debugf("finished recording")
 }
 
 func initMetrics() {

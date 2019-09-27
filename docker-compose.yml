@@ -7,6 +7,7 @@ networks:
   main-net:
 
 services:
+
   loss-prevention:
     image: rsp/loss-prevention-service:dev
     networks:
@@ -24,8 +25,8 @@ services:
       telemetryEndpoint: ""
       telemetryDataStoreName: ""
       serviceName : "Loss Prevention Example App"
-      OPENCV_LOG_LEVEL: "DEBUG"
-      OPENCV_VIDEOIO_DEBUG: "1"
+#      OPENCV_LOG_LEVEL: "DEBUG"
+#      OPENCV_VIDEOIO_DEBUG: "1"
       port: "8080"
     volumes:
       - ./recordings:/recordings
@@ -33,12 +34,15 @@ services:
       - /dev/video0:/dev/video0
 
   nginx:
-    image: nginx
+    image: nginx:latest
     networks:
       - main-net
     logging:
       options:
         max-size: "100m"
         max-file: "5"
+    ports:
+      - "9001:80"
     volumes:
-      - ./recordings:/recordings
+      - ./video-server/www:/usr/share/nginx/html
+      - ./recordings:/usr/share/nginx/html/recordings

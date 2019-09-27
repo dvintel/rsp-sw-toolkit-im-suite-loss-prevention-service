@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Loss Prevention Demo</title>
+
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.5.6/plyr.css" />
+</head>
+<body>
+  <div style="width: 1280px; height: 720px">
+    <video id="player" playsinline controls>
+    </video>
+  </div>
+
+  <script src="https://cdn.plyr.io/3.5.6/plyr.polyfilled.js"></script>
+<script>
+  function getUrlParameter(name) {
+      name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+      var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+      var results = regex.exec(location.search);
+      return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+  }
+
+  const player = new Plyr('#player', {
+  });
+
+  player.source = {
+    type: 'video',
+    title: 'Example title',
+    sources: [
+      {
+          src: '/recordings/' + getUrlParameter('v'),
+          type: 'video/webm'
+      }
+    ]
+  }
+</script>
+</body>
+</html>
