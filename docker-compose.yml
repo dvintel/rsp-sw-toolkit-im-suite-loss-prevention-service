@@ -20,11 +20,13 @@ services:
       options:
         max-size: "100m"
         max-file: "5"
+    restart: always
     environment:
       loggingLevel: "debug"
       telemetryEndpoint: ""
       telemetryDataStoreName: ""
-      serviceName : "Loss Prevention Example App"
+      serviceName: "Loss Prevention Example App"
+      videoUrlBase: "http://localhost:9001/view.html?v="
 #      OPENCV_LOG_LEVEL: "DEBUG"
 #      OPENCV_VIDEOIO_DEBUG: "1"
       port: "8080"
@@ -41,6 +43,7 @@ services:
       options:
         max-size: "100m"
         max-file: "5"
+    restart: always
     ports:
       - "9001:80"
     volumes:

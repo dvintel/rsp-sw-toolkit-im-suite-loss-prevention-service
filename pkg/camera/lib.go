@@ -23,9 +23,11 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
 	"gocv.io/x/gocv"
 	"image"
 	"io"
+	"net/url"
 	"reflect"
 	"strings"
 	"sync"
@@ -41,18 +43,6 @@ const (
 	xmlFile        = "./res/docker/haarcascade_frontalface_default.xml"
 )
 
-type FrameToken struct {
-	frame     *gocv.Mat
-	waitGroup *sync.WaitGroup
-}
-
-func NewFrameToken(frame *gocv.Mat, waitGroup *sync.WaitGroup) FrameToken {
-	return FrameToken{
-		frame:     frame,
-		waitGroup: waitGroup,
-	}
-}
-
 type Recorder struct {
 	videoDevice    int
 	foundFace      bool
@@ -63,13 +53,14 @@ type Recorder struct {
 	height         int
 	waitGroup      sync.WaitGroup
 	done           chan bool
+	ops            int64
 
 	webcam     *gocv.VideoCapture
 	classifier *gocv.CascadeClassifier
 	writer     *gocv.VideoWriter
+	frame      gocv.Mat
 
-	writeBuffer chan FrameToken
-	faceBuffer  chan FrameToken
+	faceBuffer chan gocv.Mat
 }
 
 func NewRecorder(videoDevice int, outputFilename string) *Recorder {
@@ -80,15 +71,16 @@ func NewRecorder(videoDevice int, outputFilename string) *Recorder {
 		height:         videoHeight,
 		fps:            maxFps,
 		codec:          codec,
-		faceBuffer:     make(chan FrameToken, 25),
+		frame:          gocv.NewMat(),
+		faceBuffer:     make(chan gocv.Mat, 100),
 		done:           make(chan bool),
 	}
 
 	return recorder
 }
 
-// ToCodec returns an float64 representation of FourCC bytes
-func ToCodec(codec string) float64 {
+// codecToFloat64 returns a float64 representation of FourCC bytes for use with `gocv.VideoCaptureFOURCC`
+func codecToFloat64(codec string) float64 {
 	if len(codec) != 4 {
 		return -1.0
 	}
@@ -99,7 +91,7 @@ func ToCodec(codec string) float64 {
 	return float64((c1 & 255) + ((c2 & 255) << 8) + ((c3 & 255) << 16) + ((c4 & 255) << 24))
 }
 
-func (r *Recorder) Open() error {
+func (recorder *Recorder) Open() error {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("recovered from panic: %+v", r)
@@ -109,159 +101,100 @@ func (r *Recorder) Open() error {
 	logrus.Debug("Open()")
 	var err error
 
-	if r.webcam, err = gocv.OpenVideoCapture(r.videoDevice); err != nil {
-		return errors.Wrapf(err, "Error opening video capture device: %+v", r.videoDevice)
+	if recorder.webcam, err = gocv.OpenVideoCapture(recorder.videoDevice); err != nil {
+		return errors.Wrapf(err, "Error opening video capture device: %+v", recorder.videoDevice)
 	}
 	// Note: setting the video capture four cc is very important for performance reasons.
 	// 		 it should also be set before applying any size or fps configurations.
-	r.webcam.Set(gocv.VideoCaptureFOURCC, ToCodec("MJPG"))
-	r.webcam.Set(gocv.VideoCaptureFrameWidth, float64(r.width))
-	r.webcam.Set(gocv.VideoCaptureFrameHeight, float64(r.height))
-	r.webcam.Set(gocv.VideoCaptureBufferSize, 3)
-	r.webcam.Set(gocv.VideoCaptureFPS, r.fps)
+	recorder.webcam.Set(gocv.VideoCaptureFOURCC, codecToFloat64("MJPG"))
+	recorder.webcam.Set(gocv.VideoCaptureFrameWidth, float64(recorder.width))
+	recorder.webcam.Set(gocv.VideoCaptureFrameHeight, float64(recorder.height))
+	recorder.webcam.Set(gocv.VideoCaptureFPS, recorder.fps)
+	recorder.webcam.Set(gocv.VideoCaptureBufferSize, 5)
 
 	// load classifier to recognize faces
 	classifier := gocv.NewCascadeClassifier()
-	r.classifier = &classifier
-	if !r.classifier.Load(xmlFile) {
+	recorder.classifier = &classifier
+	if !recorder.classifier.Load(xmlFile) {
 		return fmt.Errorf("error reading cascade file: %v", xmlFile)
 	}
 
-	// skip the first frame
-	r.webcam.Grab(1)
+	// skip the first frame (sometimes it takes longer to read, which affects the smoothness of the video)
+	recorder.webcam.Grab(1)
 
-	//s := time.Now()
-	//r.webcam.Grab(1)
-	//d := time.Now().Sub(s)
-	//computedFps := 1000 / int64(d/time.Millisecond)
-	//logrus.Debugf("computedFps: %v", computedFps)
-	//
-	//r.fps = math.Min(float64(computedFps), maxFps)
-	//logrus.Debugf("actualFps: %v", r.fps)
-	////r.webcam.Set(gocv.VideoCaptureFPS, r.fps)
-
-	r.writer, err = gocv.VideoWriterFile(r.outputFilename, r.codec, r.fps, r.width, r.height, true)
+	recorder.writer, err = gocv.VideoWriterFile(recorder.outputFilename, recorder.codec, recorder.fps, recorder.width, recorder.height, true)
 	if err != nil {
-		return errors.Wrapf(err, "error opening video writer device: %+v", r.outputFilename)
+		return errors.Wrapf(err, "error opening video writer device: %+v", recorder.outputFilename)
 	}
 
 	logrus.Debug("Open() completed")
 	return nil
 }
 
-func (r *Recorder) Next() error {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Errorf("recovered from panic: %+v", r)
-		}
-	}()
-
-	logrus.Debug("Next()")
-	frame := gocv.NewMat()
-	if ok := r.webcam.Read(&frame); !ok {
-		return fmt.Errorf("unable to read from webcam. device closed: %+v", r.videoDevice)
-	}
-
-	//r.waitGroup.Add(1)
-	//go func(wg *sync.WaitGroup) {
-	//	defer func() {
-	//		if r := recover(); r != nil {
-	//			logrus.Errorf("recovered from panic: %+v", r)
-	//		}
-	//	}()
-	//
-	//
-	//	//safeClose(&frame)
-	//	//wg.Done()
-	//}(&r.waitGroup)
-
-	logrus.Debug("processing frame")
-	frameWaitGroup := new(sync.WaitGroup)
-	frameWaitGroup.Add(2)
-
-	frameClone := frame.Clone()
-	r.writeBuffer <- NewFrameToken(&frameClone, frameWaitGroup)
-	//r.faceBuffer <- NewFrameToken(frame.Clone(), frameWaitGroup)
-
-	//frameWaitGroup.Wait()
-
-	logrus.Debug("processing frame done")
-
-	logrus.Debug("Next() completed")
-	return nil
+func (recorder *Recorder) Begin() time.Time {
+	go recorder.ProcessFaceQueue(recorder.done)
+	return time.Now()
 }
 
-func (r *Recorder) Begin() {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Errorf("recovered from panic: %+v", r)
-		}
-	}()
-
-	logrus.Debug("Begin()")
-	r.ProcessFaceQueue(r.done)
-	logrus.Debug("Begin() completed")
-}
-
-func (r *Recorder) Wait() {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Errorf("recovered from panic: %+v", r)
-		}
-	}()
-
+func (recorder *Recorder) Wait() time.Time {
 	logrus.Debug("Wait()")
-	r.waitGroup.Wait()
+	recorder.waitGroup.Wait()
 	logrus.Debug("Wait() completed")
+	return time.Now()
 }
 
-func (r *Recorder) ProcessFaceQueue(done chan bool) {
+func (recorder *Recorder) ProcessFaceQueue(done chan bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("recovered from panic: %+v", r)
 		}
 	}()
 
-	logrus.Debug("ProcessFaceQueue()")
+	logrus.Debug("ProcessFaceQueue() goroutine started")
 	for {
 		select {
 		case <-done:
-			logrus.Debug("ProcessFaceQueue() completed")
+			logrus.Debug("ProcessFaceQueue() goroutine completed")
 			return
 
-		case token := <-r.faceBuffer:
-			logrus.Debug("faceBuffer token")
-			if !r.foundFace {
-				rects := r.classifier.DetectMultiScale(*token.frame)
+		case frameClone := <-recorder.faceBuffer:
+			if !recorder.foundFace {
+				rects := recorder.classifier.DetectMultiScaleWithParams(frameClone, 1.1, 4, 0,
+					image.Point{X: int(videoWidth / 10), Y: int(videoHeight / 10)}, image.Point{X: int(videoWidth / 4), Y: int(videoHeight / 4)})
+
 				if len(rects) > 0 {
 					logrus.Debugf("Detected %v face(s)", len(rects))
-					gocv.IMWrite(fmt.Sprintf("%s.face.jpg", r.outputFilename), *token.frame)
+					prefix := strings.TrimSuffix(recorder.outputFilename, VideoExtension)
+					gocv.IMWrite(fmt.Sprintf("%s.face.jpg", prefix), frameClone)
 					for i, rect := range rects {
-						gocv.IMWrite(fmt.Sprintf("%s.face.%d.jpg", r.outputFilename, i), token.frame.Region(rect))
+						gocv.IMWrite(fmt.Sprintf("%s.face.%d.jpg", prefix, i), frameClone.Region(rect))
 					}
-					r.foundFace = true
+					recorder.foundFace = true
 				}
 			}
-			logrus.Debug("faceBuffer token complete")
-			//token.waitGroup.Done()
+			safeClose(&frameClone)
+			recorder.waitGroup.Done()
 		}
 	}
 }
 
-func (r *Recorder) Close() {
+func (recorder *Recorder) Close() {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("recovered from panic: %+v", r)
 		}
 	}()
 
-	close(r.done)
-	close(r.faceBuffer)
-	close(r.writeBuffer)
+	// this will signal to stop the background tasks
+	recorder.done <- true
 
-	safeClose(r.webcam)
-	safeClose(r.writer)
-	safeClose(r.classifier)
+	safeClose(&recorder.frame)
+	safeClose(recorder.webcam)
+	safeClose(recorder.writer)
+	safeClose(recorder.classifier)
+
+	close(recorder.done)
+	close(recorder.faceBuffer)
 }
 
 func safeClose(c io.Closer) {
@@ -275,7 +208,9 @@ func safeClose(c io.Closer) {
 		}
 	}()
 
-	logrus.Debugf("closing %v", reflect.TypeOf(c))
+	if logrus.IsLevelEnabled(logrus.TraceLevel) {
+		logrus.Tracef("closing %v", reflect.TypeOf(c))
+	}
 
 	if err := c.Close(); err != nil {
 		logrus.Errorf("error while attempting to close %v: %v", reflect.TypeOf(c), err)
@@ -295,67 +230,32 @@ func RecordVideoToDisk(videoDevice int, seconds int, outputFilename string) erro
 		return err
 	}
 
-	frame := gocv.NewMat()
-	begin := time.Now()
-	last := time.Now()
-	//recorder.Begin()
-	frameCount := int64(recorder.fps * float64(seconds))
-	var i int64
-	for i = 0; i < frameCount; i++ {
-		//if err := recorder.Next(); err != nil {
-		//	logrus.Errorf("error: %v", err)
-		//	return err
-		//}
-		s := time.Now()
+	defer recorder.Close()
 
-		if ok := recorder.webcam.Read(&frame); !ok {
+	begin := recorder.Begin()
+	frameCount := int(recorder.fps * float64(seconds))
+	for i := 0; i < frameCount; i++ {
+		if ok := recorder.webcam.Read(&recorder.frame); !ok {
 			return fmt.Errorf("unable to read from webcam. device closed: %+v", recorder.videoDevice)
 		}
-		logrus.Debugf("read took: %v", time.Now().Sub(s))
 
-		if frame.Empty() {
+		if recorder.frame.Empty() {
 			logrus.Debug("skipping empty frame from webcam")
 			continue
 		}
 
-		logrus.Debugf("loop took: %v", time.Now().Sub(last))
-		last = time.Now()
+		recorder.waitGroup.Add(1)
+		recorder.faceBuffer <- recorder.frame.Clone()
 
-		s = time.Now()
-		//recorder.webcam.Grab(1)
-		//logrus.Debugf("grab took: %v", time.Now().Sub(s))
-
-		if !recorder.foundFace {
-			go func(r *Recorder, cloneFrame gocv.Mat) {
-				s = time.Now()
-				if !r.foundFace {
-					rects := r.classifier.DetectMultiScaleWithParams(frame, 1.1, 4, 0,
-						image.Point{X: int(videoWidth / 10), Y: int(videoHeight / 10)}, image.Point{X: int(videoWidth / 4), Y: int(videoHeight / 4)})
-					logrus.Debugf("face detect took: %v", time.Now().Sub(s))
-					if len(rects) > 0 {
-						logrus.Debugf("Detected %v face(s)", len(rects))
-						prefix := strings.TrimSuffix(r.outputFilename, VideoExtension)
-						gocv.IMWrite(fmt.Sprintf("%s.face.jpg", prefix), cloneFrame)
-						for i, rect := range rects {
-							gocv.IMWrite(fmt.Sprintf("%s.face.%d.jpg", prefix, i), cloneFrame.Region(rect))
-						}
-						r.foundFace = true
-						logrus.Debugf("face detect write took: %v", time.Now().Sub(s))
-					}
-				}
-			}(recorder, frame.Clone())
-		}
-
-		s = time.Now()
-		if err := recorder.writer.Write(frame); err != nil {
+		if err := recorder.writer.Write(recorder.frame); err != nil {
 			logrus.Errorf("error occurred while writing video to disk: %v", err)
 		}
-		logrus.Debugf("write took: %v", time.Now().Sub(s))
 	}
-	//recorder.Wait()
-	recorder.Close()
 
-	logrus.Debugf("recording took %v", time.Now().Sub(begin))
+	end := recorder.Wait()
+	logrus.Debugf("recording took %v", end.Sub(begin))
+
+	logrus.Infof("Video url: %s%s", config.AppConfig.VideoUrlBase, url.QueryEscape(outputFilename))
 
 	return nil
 }

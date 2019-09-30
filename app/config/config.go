@@ -28,6 +28,7 @@ type (
 	variables struct {
 		ServiceName, LoggingLevel, Port           string
 		TelemetryEndpoint, TelemetryDataStoreName string
+		VideoUrlBase                              string
 	}
 )
 
@@ -67,6 +68,10 @@ func InitConfig() error {
 
 	AppConfig.TelemetryDataStoreName, err = config.GetString("telemetryDataStoreName")
 	if err != nil {
+		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
+	}
+
+	if AppConfig.VideoUrlBase, err = config.GetString("videoUrlBase"); err != nil {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
