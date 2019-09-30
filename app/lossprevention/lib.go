@@ -31,7 +31,7 @@ const (
 
 	videoDevice      = 0
 	seconds          = 15
-	videoFilePattern = "/recordings/recording_%s_%v.webm"
+	videoFilePattern = "/recordings/recording_%s_%v%s"
 )
 
 func HandleDataPayload(payload *DataPayload) error {
@@ -47,7 +47,7 @@ func HandleDataPayload(payload *DataPayload) error {
 
 func triggerRecord(productId string) error {
 
-	filename := fmt.Sprintf(videoFilePattern, productId, helper.UnixMilliNow())
+	filename := fmt.Sprintf(videoFilePattern, productId, helper.UnixMilliNow(), camera.VideoExtension)
 	logrus.Debugf("recording filename: %s", filename)
 	go camera.RecordVideoToDisk(videoDevice, seconds, filename)
 

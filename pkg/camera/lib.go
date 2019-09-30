@@ -23,17 +23,22 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"gocv.io/x/gocv"
+	"image"
 	"io"
-	"math"
 	"reflect"
+	"strings"
 	"sync"
+	"time"
 )
 
 const (
-	fps     = 25
-	xmlFile = "./res/docker/haarcascade_frontalface_default.xml"
+	maxFps         = 25
+	videoWidth     = 1920
+	videoHeight    = 1080
+	codec          = "avc1"
+	VideoExtension = ".mp4"
+	xmlFile        = "./res/docker/haarcascade_frontalface_default.xml"
 )
 
 type FrameToken struct {
@@ -71,16 +76,27 @@ func NewRecorder(videoDevice int, outputFilename string) *Recorder {
 	recorder := &Recorder{
 		videoDevice:    videoDevice,
 		outputFilename: outputFilename,
-		width:          640,
-		height:         480,
-		fps:            fps,
-		codec:          "MJPG",
-		writeBuffer:    make(chan FrameToken, 100),
-		faceBuffer:     make(chan FrameToken, 100),
+		width:          videoWidth,
+		height:         videoHeight,
+		fps:            maxFps,
+		codec:          codec,
+		faceBuffer:     make(chan FrameToken, 25),
 		done:           make(chan bool),
 	}
 
 	return recorder
+}
+
+// ToCodec returns an float64 representation of FourCC bytes
+func ToCodec(codec string) float64 {
+	if len(codec) != 4 {
+		return -1.0
+	}
+	c1 := []rune(string(codec[0]))[0]
+	c2 := []rune(string(codec[1]))[0]
+	c3 := []rune(string(codec[2]))[0]
+	c4 := []rune(string(codec[3]))[0]
+	return float64((c1 & 255) + ((c2 & 255) << 8) + ((c3 & 255) << 16) + ((c4 & 255) << 24))
 }
 
 func (r *Recorder) Open() error {
@@ -96,16 +112,37 @@ func (r *Recorder) Open() error {
 	if r.webcam, err = gocv.OpenVideoCapture(r.videoDevice); err != nil {
 		return errors.Wrapf(err, "Error opening video capture device: %+v", r.videoDevice)
 	}
-
-	//r.webcam.Set(gocv.VideoCaptureFrameWidth, float64(r.width))
-	//r.webcam.Set(gocv.VideoCaptureFrameHeight, float64(r.height))
-	//r.webcam.Set(gocv.VideoCaptureFPS, r.fps)
+	// Note: setting the video capture four cc is very important for performance reasons.
+	// 		 it should also be set before applying any size or fps configurations.
+	r.webcam.Set(gocv.VideoCaptureFOURCC, ToCodec("MJPG"))
+	r.webcam.Set(gocv.VideoCaptureFrameWidth, float64(r.width))
+	r.webcam.Set(gocv.VideoCaptureFrameHeight, float64(r.height))
+	r.webcam.Set(gocv.VideoCaptureBufferSize, 3)
+	r.webcam.Set(gocv.VideoCaptureFPS, r.fps)
 
 	// load classifier to recognize faces
 	classifier := gocv.NewCascadeClassifier()
 	r.classifier = &classifier
 	if !r.classifier.Load(xmlFile) {
 		return fmt.Errorf("error reading cascade file: %v", xmlFile)
+	}
+
+	// skip the first frame
+	r.webcam.Grab(1)
+
+	//s := time.Now()
+	//r.webcam.Grab(1)
+	//d := time.Now().Sub(s)
+	//computedFps := 1000 / int64(d/time.Millisecond)
+	//logrus.Debugf("computedFps: %v", computedFps)
+	//
+	//r.fps = math.Min(float64(computedFps), maxFps)
+	//logrus.Debugf("actualFps: %v", r.fps)
+	////r.webcam.Set(gocv.VideoCaptureFPS, r.fps)
+
+	r.writer, err = gocv.VideoWriterFile(r.outputFilename, r.codec, r.fps, r.width, r.height, true)
+	if err != nil {
+		return errors.Wrapf(err, "error opening video writer device: %+v", r.outputFilename)
 	}
 
 	logrus.Debug("Open() completed")
@@ -162,8 +199,7 @@ func (r *Recorder) Begin() {
 	}()
 
 	logrus.Debug("Begin()")
-	go r.ProcessWriteQueue(r.done)
-	go r.ProcessFaceQueue(r.done)
+	r.ProcessFaceQueue(r.done)
 	logrus.Debug("Begin() completed")
 }
 
@@ -179,37 +215,6 @@ func (r *Recorder) Wait() {
 	logrus.Debug("Wait() completed")
 }
 
-func (r *Recorder) ProcessWriteQueue(done chan bool) error {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Errorf("recovered from panic: %+v", r)
-		}
-	}()
-
-	var err error
-	r.writer, err = gocv.VideoWriterFile(r.outputFilename, r.codec, r.fps, r.width, r.height, true)
-	if err != nil {
-		return errors.Wrapf(err, "error opening video writer device: %+v", r.outputFilename)
-	}
-
-	logrus.Debug("ProcessWriteQueue()")
-	for {
-		select {
-		case <-done:
-			logrus.Debug("ProcessWriteQueue() completed")
-			return nil
-
-		case token := <-r.writeBuffer:
-			logrus.Debug("writeBuffer token")
-			if err := r.writer.Write(*token.frame); err != nil {
-				logrus.Errorf("error occurred while writing video to disk: %v", err)
-			}
-			logrus.Debug("writeBuffer token complete")
-			//token.waitGroup.Done()
-		}
-	}
-}
-
 func (r *Recorder) ProcessFaceQueue(done chan bool) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -220,7 +225,7 @@ func (r *Recorder) ProcessFaceQueue(done chan bool) {
 	logrus.Debug("ProcessFaceQueue()")
 	for {
 		select {
-		case <- done:
+		case <-done:
 			logrus.Debug("ProcessFaceQueue() completed")
 			return
 
@@ -290,21 +295,67 @@ func RecordVideoToDisk(videoDevice int, seconds int, outputFilename string) erro
 		return err
 	}
 
-	begin := helper.UnixMilliNow()
+	frame := gocv.NewMat()
+	begin := time.Now()
+	last := time.Now()
+	//recorder.Begin()
+	frameCount := int64(recorder.fps * float64(seconds))
+	var i int64
+	for i = 0; i < frameCount; i++ {
+		//if err := recorder.Next(); err != nil {
+		//	logrus.Errorf("error: %v", err)
+		//	return err
+		//}
+		s := time.Now()
 
-	recorder.Begin()
-	frameCount := int(math.Round(recorder.fps * float64(seconds)))
-	for i := 0; i < frameCount; i++ {
-		if err := recorder.Next(); err != nil {
-			logrus.Errorf("error: %v", err)
-			return err
+		if ok := recorder.webcam.Read(&frame); !ok {
+			return fmt.Errorf("unable to read from webcam. device closed: %+v", recorder.videoDevice)
 		}
+		logrus.Debugf("read took: %v", time.Now().Sub(s))
+
+		if frame.Empty() {
+			logrus.Debug("skipping empty frame from webcam")
+			continue
+		}
+
+		logrus.Debugf("loop took: %v", time.Now().Sub(last))
+		last = time.Now()
+
+		s = time.Now()
+		//recorder.webcam.Grab(1)
+		//logrus.Debugf("grab took: %v", time.Now().Sub(s))
+
+		if !recorder.foundFace {
+			go func(r *Recorder, cloneFrame gocv.Mat) {
+				s = time.Now()
+				if !r.foundFace {
+					rects := r.classifier.DetectMultiScaleWithParams(frame, 1.1, 4, 0,
+						image.Point{X: int(videoWidth / 10), Y: int(videoHeight / 10)}, image.Point{X: int(videoWidth / 4), Y: int(videoHeight / 4)})
+					logrus.Debugf("face detect took: %v", time.Now().Sub(s))
+					if len(rects) > 0 {
+						logrus.Debugf("Detected %v face(s)", len(rects))
+						prefix := strings.TrimSuffix(r.outputFilename, VideoExtension)
+						gocv.IMWrite(fmt.Sprintf("%s.face.jpg", prefix), cloneFrame)
+						for i, rect := range rects {
+							gocv.IMWrite(fmt.Sprintf("%s.face.%d.jpg", prefix, i), cloneFrame.Region(rect))
+						}
+						r.foundFace = true
+						logrus.Debugf("face detect write took: %v", time.Now().Sub(s))
+					}
+				}
+			}(recorder, frame.Clone())
+		}
+
+		s = time.Now()
+		if err := recorder.writer.Write(frame); err != nil {
+			logrus.Errorf("error occurred while writing video to disk: %v", err)
+		}
+		logrus.Debugf("write took: %v", time.Now().Sub(s))
 	}
-	recorder.Wait()
+	//recorder.Wait()
 	recorder.Close()
 
-	diff := helper.UnixMilliNow() - begin
-	logrus.Debugf("recording took %v mills", diff)
+	logrus.Debugf("recording took %v", time.Now().Sub(begin))
 
 	return nil
 }

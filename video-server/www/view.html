@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://cdn.plyr.io/3.5.6/plyr.css" />
 </head>
 <body>
-  <div style="width: 1280px; height: 720px">
+  <div>
     <video id="player" playsinline controls>
     </video>
   </div>
@@ -22,15 +22,22 @@
   }
 
   const player = new Plyr('#player', {
+      autoplay: true,
+      loop: {
+          active: true
+      }
   });
+
+  let filename = getUrlParameter('v');
+  console.log(filename);
 
   player.source = {
     type: 'video',
-    title: 'Example title',
+    title: filename,
     sources: [
       {
-          src: '/recordings/' + getUrlParameter('v'),
-          type: 'video/webm'
+          src: '/recordings/' + filename,
+          type: 'video/mp4'
       }
     ]
   }
