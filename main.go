@@ -75,21 +75,24 @@ func main() {
 	}).Info("Starting Loss Prevention Service...")
 
 	// Connect to EdgeX zeroMQ bus
-	//receiveZMQEvents()
+	go receiveZMQEvents()
 
-	ticker := time.NewTicker(60 * time.Second)
-
-	go recordIt(time.Now())
+	//ticker := time.NewTicker(60 * time.Second)
+	//
+	//go recordIt(time.Now())
+	//
+	//for {
+	//	select {
+	//	case t := <-ticker.C:
+	//		go recordIt(t)
+	//	}
+	//}
 
 	for {
-		select {
-		case t := <-ticker.C:
-			go recordIt(t)
-		}
+		time.Sleep(1 * time.Second)
 	}
 
 	log.WithField("Method", "main").Info("Completed.")
-
 }
 
 func recordIt(t time.Time) {
@@ -119,28 +122,23 @@ func initMetrics() {
 }
 
 func receiveZMQEvents() {
+	//Initialized EdgeX apps functionSDK
+	edgexSdk := &appsdk.AppFunctionsSDK{ServiceKey: serviceKey}
+	if err := edgexSdk.Initialize(); err != nil {
+		edgexSdk.LoggingClient.Error(fmt.Sprintf("SDK initialization failed: %v", err))
+		os.Exit(-1)
+	}
 
-	go func() {
+	edgexSdk.SetFunctionsPipeline(
+		transforms.NewFilter(valueDescriptors).FilterByValueDescriptor,
+		processEvents,
+	)
 
-		//Initialized EdgeX apps functionSDK
-		edgexSdk := &appsdk.AppFunctionsSDK{ServiceKey: serviceKey}
-		if err := edgexSdk.Initialize(); err != nil {
-			edgexSdk.LoggingClient.Error(fmt.Sprintf("SDK initialization failed: %v", err))
-			os.Exit(-1)
-		}
-
-		edgexSdk.SetFunctionsPipeline(
-			transforms.NewFilter(valueDescriptors).FilterByValueDescriptor,
-			processEvents,
-		)
-
-		err := edgexSdk.MakeItRun()
-		if err != nil {
-			edgexSdk.LoggingClient.Error("MakeItRun returned error: ", err.Error())
-			os.Exit(-1)
-		}
-
-	}()
+	err := edgexSdk.MakeItRun()
+	if err != nil {
+		edgexSdk.LoggingClient.Error("MakeItRun returned error: ", err.Error())
+		os.Exit(-1)
+	}
 }
 
 func processEvents(edgexcontext *appcontext.Context, params ...interface{}) (bool, interface{}) {
@@ -171,6 +169,8 @@ func processEvents(edgexcontext *appcontext.Context, params ...interface{}) (boo
 			if err := lossprevention.HandleDataPayload(payload); err != nil {
 				return false, err
 			}
+		default:
+			logrus.Warnf("received unsupported event: %s", reading.Name)
 		}
 	}
 

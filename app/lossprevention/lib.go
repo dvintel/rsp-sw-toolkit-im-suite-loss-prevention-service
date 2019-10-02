@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	departed = "DEPARTED"
+	departed = "departed"
+	moved = "moved"
 
 	videoDevice      = 0
 	seconds          = 15
@@ -37,7 +38,8 @@ const (
 func HandleDataPayload(payload *DataPayload) error {
 
 	for _, tag := range payload.TagEvent {
-		if tag.Event == departed {
+		if tag.Event == moved {
+			// only 1 recording at a time anyways
 			return triggerRecord(tag.ProductID)
 		}
 	}
