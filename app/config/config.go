@@ -21,6 +21,7 @@ package config
 
 import (
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/configuration"
 )
 
@@ -28,7 +29,7 @@ type (
 	variables struct {
 		ServiceName, LoggingLevel, Port           string
 		TelemetryEndpoint, TelemetryDataStoreName string
-		VideoUrlBase                              string
+		VideoUrlBase, CoreCommandUrl              string
 	}
 )
 
@@ -75,5 +76,16 @@ func InitConfig() error {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
+	AppConfig.CoreCommandUrl = getOrDefaultString(config, "coreCommandUrl", "http://edgex-core-command:48082")
+
 	return nil
+}
+
+func getOrDefaultString(config *configuration.Configuration, path string, defaultValue string) string {
+	value, err := config.GetString(path)
+	if err != nil {
+		logrus.Debugf("%s was missing from configuration, setting to default value of %s", path, defaultValue)
+		return defaultValue
+	}
+	return value
 }

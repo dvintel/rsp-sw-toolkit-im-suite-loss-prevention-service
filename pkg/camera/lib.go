@@ -35,9 +35,11 @@ import (
 )
 
 const (
-	maxFps         = 25
-	videoWidth     = 1920
-	videoHeight    = 1080
+	maxFps      = 25
+	videoWidth  = 1280
+	videoHeight = 720
+	//videoWidth     = 1920
+	//videoHeight    = 1080
 	codec          = "avc1"
 	VideoExtension = ".mp4"
 	xmlFile        = "./res/docker/haarcascade_frontalface_default.xml"
@@ -127,7 +129,7 @@ func (recorder *Recorder) Open() error {
 	recorder.webcam.Set(gocv.VideoCaptureFrameWidth, float64(recorder.width))
 	recorder.webcam.Set(gocv.VideoCaptureFrameHeight, float64(recorder.height))
 	recorder.webcam.Set(gocv.VideoCaptureFPS, recorder.fps)
-	recorder.webcam.Set(gocv.VideoCaptureBufferSize, 5)
+	recorder.webcam.Set(gocv.VideoCaptureBufferSize, 1)
 
 	// load classifier to recognize faces
 	classifier := gocv.NewCascadeClassifier()

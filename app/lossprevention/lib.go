@@ -23,12 +23,13 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/camera"
+	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 const (
 	departed = "departed"
-	moved = "moved"
+	moved    = "moved"
 
 	videoDevice      = 0
 	seconds          = 15
@@ -38,10 +39,20 @@ const (
 func HandleDataPayload(payload *DataPayload) error {
 
 	for _, tag := range payload.TagEvent {
-		if tag.Event == moved {
-			// only 1 recording at a time anyways
+		if tag.Event != moved || len(tag.LocationHistory) <= 1 {
+			logrus.Debugf("skipping: %+v", tag)
+			continue
+		}
+
+		logrus.Debugf("location history[0]: %+v", tag.LocationHistory[0])
+
+		rsp := sensor.FindByAntennaAlias(tag.LocationHistory[0].Location)
+		logrus.Debugf("found sensor: %+v", rsp)
+		if rsp != nil && rsp.IsExitSensor() {
+			// return because we only need 1 recording
 			return triggerRecord(tag.ProductID)
 		}
+
 	}
 
 	return nil

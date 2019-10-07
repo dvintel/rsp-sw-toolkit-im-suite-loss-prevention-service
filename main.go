@@ -20,15 +20,14 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/edgexfoundry/app-functions-sdk-go/pkg/transforms"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/lossprevention"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/camera"
+	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/jsonrpc"
+	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
-	"strings"
-
 	"os"
 	"time"
 
@@ -47,13 +46,15 @@ const (
 )
 
 const (
-	inventoryEvent = "inventory_event"
+	inventoryEvent           = "inventory_event"
+	sensorConfigNotification = "sensor_config_notification"
 )
 
 var (
 	// Filter data by value descriptors (aka device resource name)
 	valueDescriptors = []string{
 		inventoryEvent,
+		sensorConfigNotification,
 	}
 )
 
@@ -73,6 +74,8 @@ func main() {
 		"Method": "main",
 		"Action": "Start",
 	}).Info("Starting Loss Prevention Service...")
+
+	go sensor.QueryBasicInfoAllSensors()
 
 	// Connect to EdgeX zeroMQ bus
 	go receiveZMQEvents()
@@ -153,22 +156,30 @@ func processEvents(edgexcontext *appcontext.Context, params ...interface{}) (boo
 
 	for _, reading := range event.Readings {
 		switch reading.Name {
+
 		case inventoryEvent:
-			logrus.Debugf("inventoryEvent data received: %s", string(reading.Value))
+			logrus.Debugf("inventoryEvent data received: %s", reading.Value)
 
 			payload := new(lossprevention.DataPayload)
-
-			decoder := json.NewDecoder(strings.NewReader(reading.Value))
-			decoder.UseNumber()
-
-			if err := decoder.Decode(payload); err != nil {
-				errorHandler("error decoding jsonrpc messaage", err, nil)
+			if err := jsonrpc.Decode(reading.Value, payload, nil); err != nil {
 				return false, err
 			}
 
 			if err := lossprevention.HandleDataPayload(payload); err != nil {
 				return false, err
 			}
+
+		case sensorConfigNotification:
+			logrus.Debugf("Received sensor config notification:\n%s", reading.Value)
+
+			notification := new(jsonrpc.SensorConfigNotification)
+			if err := jsonrpc.Decode(reading.Value, notification, nil); err != nil {
+				return false, err
+			}
+
+			rsp := sensor.NewRSPFromConfigNotification(notification)
+			sensor.UpdateRSP(rsp)
+
 		default:
 			logrus.Warnf("received unsupported event: %s", reading.Name)
 		}

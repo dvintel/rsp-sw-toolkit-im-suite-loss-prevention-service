@@ -13,6 +13,7 @@ services:
       - "edgex-core-data:172.17.0.1"
       - "edgex-support-logging:172.17.0.1"
       - "edgex-core-consul:172.17.0.1"
+      - "edgex-core-command:172.17.0.1"
     logging:
       options:
         max-size: "100m"

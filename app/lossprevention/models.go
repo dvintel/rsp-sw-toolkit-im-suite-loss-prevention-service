@@ -76,3 +76,9 @@ type LocationHistory struct {
 	Timestamp int64  `json:"timestamp"`
 	Source    string `json:"source"`
 }
+
+// Validate implements the jsonrpc.Message interface
+func (dataPayload *DataPayload) Validate() error {
+	// todo
+	return nil
+}
