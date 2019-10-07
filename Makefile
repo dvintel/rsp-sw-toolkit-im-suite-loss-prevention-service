@@ -20,7 +20,7 @@ wait_for_service =	@printf "Waiting for $(SERVICE_NAME) service to$1..."; \
                  	done; \
                  	printf "\n";
 
-log = docker-compose logs $1$2 2>&1
+log = docker-compose logs $1 $2 2>&1
 
 test =	echo "Go Testing..."; \
 		go test ./... $1
@@ -67,42 +67,46 @@ docker: build
 		-t rsp/$(PROJECT_NAME):dev \
 		.
 
-build-video:
-	docker build --rm \
-		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
-		--build-arg http_proxy=$(http_proxy) \
-		--build-arg https_proxy=$(https_proxy) \
-		-f video-server/Dockerfile \
-		--label "git_sha=$(GIT_SHA)" \
-		-t rsp/video-server:dev \
-		./video-server/
-
 iterate:
-	$(compose) down &
+	$(compose) down --remove-orphans &
 	$(MAKE) build docker
 	# make sure it has stopped before we try and start it again
 	$(call wait_for_service, stop, !)
-	$(compose) up
+	$(compose) up --remove-orphans
+
+iterate-d:
+	$(compose) down --remove-orphans &
+	$(MAKE) build docker
+	# make sure it has stopped before we try and start it again
+	$(call wait_for_service, stop, !)
+	$(compose) up --remove-orphans -d
+	$(MAKE) tail
 
 restart:
-	$(compose) down
-	$(call wait_for_service, stop, !)
-	$(compose) up -d
-	$(call wait_for_service, start)
+	$(compose) restart $(args)
+
+kill:
+	$(compose) kill $(args)
 
 tail:
-	$(trap_ctrl_c) $(call log,-f --tail 10,$(args))
+	$(trap_ctrl_c) $(call log,-f --tail=10, $(args))
 
-stop:
-	$(compose) down --remove-orphans
+rm:
+	$(compose) rm --remove-orphans $(args)
 
-down: stop
+down:
+	$(compose) down --remove-orphans $(args)
 
-start:
+up:
 	$(compose) up --remove-orphans $(args)
 
-up: start
-deploy: start
+stop: down
+start: up
+
+up-d:
+	$(MAKE) up args="-d $(args)"
+
+deploy: up-d
 
 fmt:
 	go fmt ./...
