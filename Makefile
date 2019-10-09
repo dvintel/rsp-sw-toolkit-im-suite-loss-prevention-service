@@ -29,8 +29,7 @@ test =	echo "Go Testing..."; \
 
 default: build
 
-SRC_PATH := $(shell pwd | sed -nr 's|$(GOPATH)/src/(.+)|\1|p')
-GO = GOOS=linux GOARCH=amd64 CGO_ENABLED=1 GO111MODULE=on go
+GO = GOOS=linux GOARCH=amd64 CGO_ENABLED=1 GO111MODULE=auto go
 
 builder:
 	docker build --rm \
@@ -50,9 +49,9 @@ loss-prevention-service:
 		-it \
 		--name=gobuilder \
 		-v $(PROJECT_NAME)-cache:/cache \
-		-v $(GOPATH)/src/$(SRC_PATH):/go/src/$(SRC_PATH) \
+		-v $(PWD):/app \
 		-v ~/.git-credentials:/root/.git-credentials \
-		-w /go/src/$(SRC_PATH) \
+		-w /app \
 		-e GOCACHE=/cache \
 		$(BUILDER_IMAGE) \
 		sh -c '$(GO) build -v -o ./$@'
