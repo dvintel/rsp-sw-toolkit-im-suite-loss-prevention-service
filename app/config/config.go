@@ -23,6 +23,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/configuration"
+	"strconv"
 )
 
 type (
@@ -30,6 +31,7 @@ type (
 		ServiceName, LoggingLevel, Port           string
 		TelemetryEndpoint, TelemetryDataStoreName string
 		VideoUrlBase, CoreCommandUrl              string
+		VideoDevice								  string
 	}
 )
 
@@ -74,6 +76,14 @@ func InitConfig() error {
 
 	if AppConfig.VideoUrlBase, err = config.GetString("videoUrlBase"); err != nil {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
+	}
+
+	if AppConfig.VideoDevice, err = config.GetString("ipCameraStreamUrl"); err != nil {
+		if device, err := config.GetInt("usbCameraDeviceIndex"); err == nil && device >= 0 {
+			AppConfig.VideoDevice = strconv.Itoa(device)
+		} else {
+			return errors.Wrapf(err, "Unable to load config variables: %v", err)
+		}
 	}
 
 	AppConfig.CoreCommandUrl = getOrDefaultString(config, "coreCommandUrl", "http://edgex-core-command:48082")

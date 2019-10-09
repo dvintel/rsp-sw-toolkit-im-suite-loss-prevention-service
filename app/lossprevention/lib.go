@@ -22,6 +22,7 @@ package lossprevention
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/camera"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
@@ -31,7 +32,6 @@ const (
 	departed = "departed"
 	moved    = "moved"
 
-	videoDevice      = 0
 	seconds          = 15
 	videoFilePattern = "/recordings/recording_%s_%v%s"
 )
@@ -62,7 +62,7 @@ func triggerRecord(productId string) error {
 
 	filename := fmt.Sprintf(videoFilePattern, productId, helper.UnixMilliNow(), camera.VideoExtension)
 	logrus.Debugf("recording filename: %s", filename)
-	go camera.RecordVideoToDisk(videoDevice, seconds, filename)
+	go camera.RecordVideoToDisk(config.AppConfig.VideoDevice, seconds, filename)
 
 	return nil
 }

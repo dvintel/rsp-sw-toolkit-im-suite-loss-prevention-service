@@ -61,7 +61,7 @@ func (recorder *Recorder) NewFrameToken() *FrameToken {
 }
 
 type Recorder struct {
-	videoDevice    int
+	videoDevice    string
 	foundFace      bool
 	outputFilename string
 	fps            float64
@@ -80,7 +80,7 @@ type Recorder struct {
 	waitBuffer  chan *FrameToken
 }
 
-func NewRecorder(videoDevice int, outputFilename string) *Recorder {
+func NewRecorder(videoDevice string, outputFilename string) *Recorder {
 	recorder := &Recorder{
 		videoDevice:    videoDevice,
 		outputFilename: outputFilename,
@@ -287,7 +287,7 @@ func safeClose(c io.Closer) {
 	}
 }
 
-func RecordVideoToDisk(videoDevice int, seconds int, outputFilename string) error {
+func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) error {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("recovered from panic: %+v", r)
