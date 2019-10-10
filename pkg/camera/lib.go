@@ -26,6 +26,7 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
 	"gocv.io/x/gocv"
 	"image"
+	"image/color"
 	"io"
 	"net/url"
 	"reflect"
@@ -35,11 +36,9 @@ import (
 )
 
 const (
-	maxFps      = 25
-	videoWidth  = 1280
-	videoHeight = 720
-	//videoWidth     = 1920
-	//videoHeight    = 1080
+	maxFps         = 25
+	videoWidth     = 1280
+	videoHeight    = 720
 	codec          = "avc1"
 	VideoExtension = ".mp4"
 	xmlFile        = "./res/docker/haarcascade_frontalface_default.xml"
@@ -74,6 +73,7 @@ type Recorder struct {
 	webcam     *gocv.VideoCapture
 	classifier *gocv.CascadeClassifier
 	writer     *gocv.VideoWriter
+	window	   *gocv.Window
 
 	faceBuffer  chan *FrameToken
 	writeBuffer chan *FrameToken
@@ -88,6 +88,7 @@ func NewRecorder(videoDevice string, outputFilename string) *Recorder {
 		height:         videoHeight,
 		fps:            maxFps,
 		codec:          codec,
+		window: 		gocv.NewWindow(config.AppConfig.ServiceName),
 
 		faceBuffer:  make(chan *FrameToken, 100),
 		writeBuffer: make(chan *FrameToken, 100),
@@ -149,6 +150,7 @@ func (recorder *Recorder) Begin() time.Time {
 	go recorder.ProcessFaceQueue(recorder.done)
 	go recorder.ProcessWriteQueue(recorder.done)
 	go recorder.ProcessWaitQueue(recorder.done)
+	recorder.window.ResizeWindow(recorder.width, recorder.height)
 	return time.Now()
 }
 
@@ -176,6 +178,10 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 
 		case frameToken := <-recorder.waitBuffer:
 			frameToken.waitGroup.Wait()
+
+			recorder.window.IMShow(frameToken.frame)
+			recorder.window.WaitKey(1)
+
 			safeClose(&frameToken.frame)
 			recorder.waitGroup.Done()
 		}
@@ -219,6 +225,7 @@ func (recorder *Recorder) ProcessFaceQueue(done chan bool) {
 		}
 	}()
 
+	blue := color.RGBA{0, 0, 255, 0}
 	logrus.Debug("ProcessFaceQueue() goroutine started")
 	for {
 		select {
@@ -228,20 +235,26 @@ func (recorder *Recorder) ProcessFaceQueue(done chan bool) {
 			return
 
 		case token := <-recorder.faceBuffer:
-			if !recorder.foundFace {
+			//if !recorder.foundFace {
 				rects := recorder.classifier.DetectMultiScaleWithParams(token.frame, 1.1, 4, 0,
 					image.Point{X: int(videoWidth / 10), Y: int(videoHeight / 10)}, image.Point{X: int(videoWidth / 4), Y: int(videoHeight / 4)})
 
 				if len(rects) > 0 {
 					logrus.Debugf("Detected %v face(s)", len(rects))
 					prefix := strings.TrimSuffix(recorder.outputFilename, VideoExtension)
-					gocv.IMWrite(fmt.Sprintf("%s.face.jpg", prefix), token.frame)
-					for i, rect := range rects {
-						gocv.IMWrite(fmt.Sprintf("%s.face.%d.jpg", prefix, i), token.frame.Region(rect))
+					if !recorder.foundFace {
+						gocv.IMWrite(fmt.Sprintf("%s.face.jpg", prefix), token.frame)
+						for i, rect := range rects {
+							gocv.IMWrite(fmt.Sprintf("%s.face.%d.jpg", prefix, i), token.frame.Region(rect))
+						}
 					}
+					for _, rect := range rects {
+						gocv.Rectangle(&token.frame, rect, blue, 1)
+					}
+
 					recorder.foundFace = true
 				}
-			}
+			//}
 			token.waitGroup.Done()
 		}
 	}
@@ -263,6 +276,7 @@ func (recorder *Recorder) Close() {
 	safeClose(recorder.webcam)
 	safeClose(recorder.writer)
 	safeClose(recorder.classifier)
+	safeClose(recorder.window)
 
 	logrus.Debug("Close() completed")
 }

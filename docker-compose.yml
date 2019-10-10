@@ -19,19 +19,24 @@ services:
         max-size: "100m"
         max-file: "5"
     restart: always
+    security_opt:
+      - apparmor=unconfined
     environment:
+      DISPLAY: unix:0
       loggingLevel: "debug"
       telemetryEndpoint: ""
       telemetryDataStoreName: ""
 #      ipCameraStreamUrl: ""
       usbCameraDeviceIndex: 0
       serviceName: "Loss Prevention Example App"
-      videoUrlBase: "http://localhost:9001/material-dashboard/view.html?v="
+      videoUrlBase: "http://localhost:9091/material-dashboard/view.html?v="
 #      OPENCV_LOG_LEVEL: "DEBUG"
 #      OPENCV_VIDEOIO_DEBUG: "1"
       port: "8080"
     volumes:
       - ./recordings:/recordings
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /var/run/dbus:/var/run/dbus
     devices:
       - /dev/video0:/dev/video0
 
@@ -45,7 +50,7 @@ services:
         max-file: "5"
     restart: always
     ports:
-      - "9001:80"
+      - "9091:80"
     volumes:
       - ./video-server/www:/usr/share/nginx/html
       - ./recordings:/usr/share/nginx/html/recordings

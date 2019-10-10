@@ -1,0 +1,39 @@
+FROM ubuntu:18.04
+
+RUN apt update
+RUN apt upgrade -y
+RUN apt install -y wget gnupg2
+RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB -O /tmp/key.pub
+RUN apt-key add /tmp/key.pub
+RUN apt-key list
+RUN echo "deb https://apt.repos.intel.com/openvino/2019/ all main" > /etc/apt/sources.list.d/intel-openvino-2019.list
+RUN apt update
+RUN apt install -y intel-openvino-dev-ubuntu18-2019.3.344
+RUN apt install -y cmake python3 python3-pip sudo libgtk-3.0 vim
+WORKDIR /opt/intel/openvino/deployment_tools/inference_engine/samples
+RUN ./build_samples.sh
+WORKDIR /opt/intel/openvino/python/python3.6
+RUN pip3 install -r requirements.txt
+RUN apt install -y build-essential virtualenv libcairo2-dev libpango1.0-dev libglib2.0-dev libgtk2.0-dev libgtk-3.0 libswscale-dev libavcodec-dev libavformat-dev libgstreamer1.0-0 gstreamer1.0-plugins-base
+
+RUN apt-get install -y software-properties-common
+RUN add-apt-repository ppa:longsleep/golang-backports -y
+RUN apt-get install -y golang-1.12-go
+ENV PATH=/usr/lib/go-1.12/bin:$PATH
+RUN go version
+
+RUN apt-get install -y git
+
+# Authentication needed to pull git modules from github.impcloud.net
+RUN git config --global credential.helper store
+ARG GIT_TOKEN
+RUN set +x && echo "https://$GIT_TOKEN:x-oauth-basic@github.impcloud.net" > ~/.git-credentials
+
+WORKDIR /app
+# Download go modules first so they can be cached for faster subsequent builds
+COPY go.mod go.mod
+RUN go mod download && mv go.sum go.sum.bak
+
+RUN go get -u -d gocv.io/x/gocv
+
+RUN apt-get install -y libzmq3-dev

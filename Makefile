@@ -2,7 +2,8 @@
 SERVICE_NAME ?= loss-prevention
 PROJECT_NAME ?= loss-prevention-service
 
-BUILDER_IMAGE ?= rsp/$(PROJECT_NAME)-builder:dev
+#BUILDER_IMAGE ?= rsp/$(PROJECT_NAME)-builder:dev
+BUILDER_IMAGE ?= rsp/openvino:dev
 
 GIT_SHA = $(shell git rev-parse HEAD)
 
@@ -50,11 +51,11 @@ loss-prevention-service:
 		--name=gobuilder \
 		-v $(PROJECT_NAME)-cache:/cache \
 		-v $(PWD):/app \
-		-v ~/.git-credentials:/root/.git-credentials \
+		-e GIT_TOKEN \
 		-w /app \
 		-e GOCACHE=/cache \
 		$(BUILDER_IMAGE) \
-		sh -c '$(GO) build -v -o ./$@'
+		bash -c '. /opt/intel/openvino/bin/setupvars.sh && source ~/go/pkg/mod/gocv.io/x/gocv@v0.20.0/openvino/env.sh && LIBRARY_PATH=$$LD_LIBRARY_PATH CGO_LDFLAGS="-lpthread -ldl -lHeteroPlugin -lMKLDNNPlugin -lmyriadPlugin -linference_engine -lclDNNPlugin -lopencv_core -lopencv_videoio -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs -lopencv_objdetect -lopencv_features2d -lopencv_video -lopencv_dnn -lopencv_calib3d" $(GO) build -tags openvino -v -o ./$@'
 
 docker: build
 	docker build --rm \
@@ -64,6 +65,16 @@ docker: build
 		-f Dockerfile_dev \
 		--label "git_sha=$(GIT_SHA)" \
 		-t rsp/$(PROJECT_NAME):dev \
+		.
+
+vino:
+	docker build \
+		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
+		--build-arg http_proxy=$(http_proxy) \
+		--build-arg https_proxy=$(https_proxy) \
+		-f Dockerfile.vino \
+		--label "git_sha=$(GIT_SHA)" \
+		-t rsp/openvino:dev \
 		.
 
 iterate:
