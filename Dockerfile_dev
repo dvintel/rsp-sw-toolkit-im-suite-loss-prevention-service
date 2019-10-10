@@ -1,10 +1,11 @@
 FROM rsp/openvino:dev
+
 ADD loss-prevention-service entrypoint.sh /
 ADD /res/docker /res/docker
 
-#RUN usermod -a -G video 2000
-
 ARG GIT_COMMIT=unspecified
 LABEL git_commit=$GIT_COMMIT
+
+WORKDIR /
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -50,12 +50,12 @@ loss-prevention-service:
 		-it \
 		--name=gobuilder \
 		-v $(PROJECT_NAME)-cache:/cache \
-		-v $(PWD):/app \
+		-v $$(pwd):/app \
 		-e GIT_TOKEN \
 		-w /app \
 		-e GOCACHE=/cache \
 		$(BUILDER_IMAGE) \
-		bash -c '. /opt/intel/openvino/bin/setupvars.sh && source ~/go/pkg/mod/gocv.io/x/gocv@v0.20.0/openvino/env.sh && LIBRARY_PATH=$$LD_LIBRARY_PATH CGO_LDFLAGS="-lpthread -ldl -lHeteroPlugin -lMKLDNNPlugin -lmyriadPlugin -linference_engine -lclDNNPlugin -lopencv_core -lopencv_videoio -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs -lopencv_objdetect -lopencv_features2d -lopencv_video -lopencv_dnn -lopencv_calib3d" $(GO) build -tags openvino -v -o ./$@'
+		bash -c '/app/build.sh'
 
 docker: build
 	docker build --rm \
