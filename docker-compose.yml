@@ -24,15 +24,10 @@ services:
     environment:
       DISPLAY: unix:0
       loggingLevel: "debug"
-      telemetryEndpoint: ""
-      telemetryDataStoreName: ""
 #      ipCameraStreamUrl: ""
       usbCameraDeviceIndex: 0
       serviceName: "Loss Prevention Example App"
       videoUrlBase: "http://localhost:9091/material-dashboard/view.html?v="
-#      OPENCV_LOG_LEVEL: "DEBUG"
-#      OPENCV_VIDEOIO_DEBUG: "1"
-      port: "8080"
     volumes:
       - ./recordings:/recordings
       - /tmp/.X11-unix:/tmp/.X11-unix

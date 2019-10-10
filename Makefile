@@ -40,7 +40,7 @@ build: vino Makefile build.sh
 		-e GIT_TOKEN \
 		-w /app \
 		-e GOCACHE=/cache \
-		-e HOST_UID=$${UID} \
+		-e LOCAL_USER=$$(id -u $$(logname)) \
 		$(BUILDER_IMAGE) \
 		bash -c '/app/build.sh'
 
@@ -59,6 +59,7 @@ vino: go.mod Dockerfile.vino
 		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
 		--build-arg http_proxy=$(http_proxy) \
 		--build-arg https_proxy=$(https_proxy) \
+		--build-arg LOCAL_USER=$$(id -u $$(logname)) \
 		-f Dockerfile.vino \
 		--label "git_sha=$(GIT_SHA)" \
 		-t rsp/openvino:dev \

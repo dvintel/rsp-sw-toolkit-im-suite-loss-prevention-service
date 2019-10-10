@@ -101,7 +101,7 @@ func main() {
 func recordIt(t time.Time) {
 	logrus.Debugf("ticker %+v", t)
 	logrus.Debugf("recording from camera")
-	filename := fmt.Sprintf("/recordings/test_%v%s", helper.UnixMilliNow(), camera.VideoExtension)
+	filename := fmt.Sprintf("/recordings/test_%v%s", helper.UnixMilliNow(), config.AppConfig.VideoOutputExtension)
 	logrus.Debugf("recording filename: %s", filename)
 	if err := camera.RecordVideoToDisk(config.AppConfig.VideoDevice, 5, filename); err != nil {
 		log.Errorf("error: %+v", err)

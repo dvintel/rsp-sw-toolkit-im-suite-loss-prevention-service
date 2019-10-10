@@ -1,3 +1,8 @@
 recordings
 go.sum
 .idea
+README.md
+Makefile
+.gitignore
+docker-compose.yml
+Jenkinsfile

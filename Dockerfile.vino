@@ -35,5 +35,6 @@ RUN git config --global credential.helper store && \
 WORKDIR /app
 # Download go modules first so they can be cached for faster subsequent builds
 COPY go.mod go.mod
-RUN (go mod download && mv go.sum /tmp/go.sum) || \
+ARG LOCAL_USER
+RUN (go mod download && chown ${LOCAL_USER}:${LOCAL_USER} go.mod go.sum) || \
     (printf "\e[31mThere was an error downloading go module dependencies.\nPlease make sure you set \e[1mGIT_TOKEN\e[22;24m to your git auth token!\e[0m\n"; exit 1)

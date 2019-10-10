@@ -29,8 +29,7 @@ import (
 )
 
 const (
-	departed = "departed"
-	moved    = "moved"
+	moved = "moved"
 
 	seconds          = 15
 	videoFilePattern = "/recordings/recording_%s_%v%s"
@@ -39,18 +38,23 @@ const (
 func HandleDataPayload(payload *DataPayload) error {
 
 	for _, tag := range payload.TagEvent {
-		if tag.Event != moved || len(tag.LocationHistory) <= 1 {
+		if tag.Event != moved || len(tag.LocationHistory) < 2 {
 			logrus.Debugf("skipping: %+v", tag)
 			continue
 		}
 
-		logrus.Debugf("location history[0]: %+v", tag.LocationHistory[0])
+		logrus.Debugf("location history  current: %+v", tag.LocationHistory[0])
+		logrus.Debugf("location history previous: %+v", tag.LocationHistory[1])
 
 		rsp := sensor.FindByAntennaAlias(tag.LocationHistory[0].Location)
-		logrus.Debugf("found sensor: %+v", rsp)
+		logrus.Debugf("found current sensor: %+v", rsp)
 		if rsp != nil && rsp.IsExitSensor() {
-			// return because we only need 1 recording
-			return triggerRecord(tag.ProductID)
+			rsp2 := sensor.FindByAntennaAlias(tag.LocationHistory[1].Location)
+			logrus.Debugf("found previous sensor: %+v", rsp2)
+			if rsp2 != nil && !rsp2.IsExitSensor() {
+				// return so we do not keep checking
+				return triggerRecord(tag.ProductID)
+			}
 		}
 
 	}
@@ -60,7 +64,7 @@ func HandleDataPayload(payload *DataPayload) error {
 
 func triggerRecord(productId string) error {
 
-	filename := fmt.Sprintf(videoFilePattern, productId, helper.UnixMilliNow(), camera.VideoExtension)
+	filename := fmt.Sprintf(videoFilePattern, productId, helper.UnixMilliNow(), config.AppConfig.VideoOutputExtension)
 	logrus.Debugf("recording filename: %s", filename)
 	go camera.RecordVideoToDisk(config.AppConfig.VideoDevice, seconds, filename)
 

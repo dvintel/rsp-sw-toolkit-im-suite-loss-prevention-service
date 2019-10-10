@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
 	"gocv.io/x/gocv"
+	"golang.org/x/sync/semaphore"
 	"image"
 	"image/color"
 	"io"
@@ -36,16 +37,11 @@ import (
 )
 
 const (
-	maxFps         = 25
-	videoWidth     = 1280
-	videoHeight    = 720
-	codec          = "avc1"
-	VideoExtension = ".mp4"
-	xmlFile        = "./res/docker/haarcascade_frontalface_default.xml"
+	xmlFile = "./res/docker/haarcascade_frontalface_default.xml"
 )
 
 var (
-	cameraMutex = new(sync.Mutex)
+	cameraSemaphone = semaphore.NewWeighted(1)
 )
 
 type FrameToken struct {
@@ -67,13 +63,14 @@ type Recorder struct {
 	codec          string
 	width          int
 	height         int
+	liveView       bool
 	waitGroup      sync.WaitGroup
 	done           chan bool
 
 	webcam     *gocv.VideoCapture
 	classifier *gocv.CascadeClassifier
 	writer     *gocv.VideoWriter
-	window	   *gocv.Window
+	window     *gocv.Window
 
 	faceBuffer  chan *FrameToken
 	writeBuffer chan *FrameToken
@@ -84,11 +81,12 @@ func NewRecorder(videoDevice string, outputFilename string) *Recorder {
 	recorder := &Recorder{
 		videoDevice:    videoDevice,
 		outputFilename: outputFilename,
-		width:          videoWidth,
-		height:         videoHeight,
-		fps:            maxFps,
-		codec:          codec,
-		window: 		gocv.NewWindow(config.AppConfig.ServiceName + " - OpenVINO"),
+		width:          config.AppConfig.VideoResolutionWidth,
+		height:         config.AppConfig.VideoResolutionHeight,
+		liveView:       config.AppConfig.LiveView,
+		fps:            float64(config.AppConfig.VideoOutputFps),
+		codec:          config.AppConfig.VideoOutputCodec,
+		window:         gocv.NewWindow(config.AppConfig.ServiceName + " - OpenVINO"),
 
 		faceBuffer:  make(chan *FrameToken, 100),
 		writeBuffer: make(chan *FrameToken, 100),
@@ -126,11 +124,11 @@ func (recorder *Recorder) Open() error {
 	}
 	// Note: setting the video capture four cc is very important for performance reasons.
 	// 		 it should also be set before applying any size or fps configurations.
-	recorder.webcam.Set(gocv.VideoCaptureFOURCC, codecToFloat64("MJPG"))
+	recorder.webcam.Set(gocv.VideoCaptureFOURCC, codecToFloat64(config.AppConfig.VideoCaptureFOURCC))
 	recorder.webcam.Set(gocv.VideoCaptureFrameWidth, float64(recorder.width))
 	recorder.webcam.Set(gocv.VideoCaptureFrameHeight, float64(recorder.height))
 	recorder.webcam.Set(gocv.VideoCaptureFPS, recorder.fps)
-	recorder.webcam.Set(gocv.VideoCaptureBufferSize, 1)
+	recorder.webcam.Set(gocv.VideoCaptureBufferSize, float64(config.AppConfig.VideoCaptureBufferSize))
 
 	// load classifier to recognize faces
 	classifier := gocv.NewCascadeClassifier()
@@ -179,8 +177,16 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 		case frameToken := <-recorder.waitBuffer:
 			frameToken.waitGroup.Wait()
 
-			recorder.window.IMShow(frameToken.frame)
-			recorder.window.WaitKey(1)
+			if recorder.liveView {
+				recorder.window.IMShow(frameToken.frame)
+				recorder.window.WaitKey(1)
+				//
+				//if recorder.window.GetWindowProperty(gocv.WindowPropertyVisible) < 1 {
+				//	logrus.Debugf("stopping video live view")
+				//	recorder.liveView = false
+				//	safeClose(recorder.window)
+				//}
+			}
 
 			safeClose(&frameToken.frame)
 			recorder.waitGroup.Done()
@@ -236,25 +242,25 @@ func (recorder *Recorder) ProcessFaceQueue(done chan bool) {
 
 		case token := <-recorder.faceBuffer:
 			//if !recorder.foundFace {
-				rects := recorder.classifier.DetectMultiScaleWithParams(token.frame, 1.1, 6, 0,
-					image.Point{X: int(videoWidth / 10), Y: int(videoHeight / 10)}, image.Point{X: videoWidth * 0.8, Y: videoHeight * 0.8})
+			rects := recorder.classifier.DetectMultiScaleWithParams(token.frame, 1.1, 6, 0,
+				image.Point{X: int(float64(recorder.width) * 0.1), Y: int(float64(recorder.height) * 0.1)}, image.Point{X: int(float64(recorder.width) * 0.8), Y: int(float64(recorder.height) * 0.8)})
 
-				if len(rects) > 0 {
-					logrus.Debugf("Detected %v face(s)", len(rects))
-					prefix := strings.TrimSuffix(recorder.outputFilename, VideoExtension)
-					if !recorder.foundFace {
-						gocv.IMWrite(fmt.Sprintf("%s.face.jpg", prefix), token.frame)
-						for i, rect := range rects {
-							gocv.IMWrite(fmt.Sprintf("%s.face.%d.jpg", prefix, i), token.frame.Region(rect))
-						}
+			if len(rects) > 0 {
+				logrus.Debugf("Detected %v face(s)", len(rects))
+				prefix := strings.TrimSuffix(recorder.outputFilename, config.AppConfig.VideoOutputExtension)
+				if !recorder.foundFace {
+					gocv.IMWrite(fmt.Sprintf("%s.face.jpg", prefix), token.frame)
+					for i, rect := range rects {
+						gocv.IMWrite(fmt.Sprintf("%s.face.%d.jpg", prefix, i), token.frame.Region(rect))
 					}
-					for _, rect := range rects {
-						gocv.Rectangle(&token.frame, rect, red, 2)
-						gocv.PutText(&token.frame, "Bacon Thief!", image.Point{rect.Min.X, rect.Min.Y - 10}, gocv.FontHersheyComplex, 1, red, 3)
-					}
-
-					recorder.foundFace = true
 				}
+				for _, rect := range rects {
+					gocv.Rectangle(&token.frame, rect, red, 2)
+					gocv.PutText(&token.frame, "Bacon Thief!", image.Point{rect.Min.X, rect.Min.Y - 10}, gocv.FontHersheyComplex, 1, red, 3)
+				}
+
+				recorder.foundFace = true
+			}
 			//}
 			token.waitGroup.Done()
 		}
@@ -310,8 +316,11 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) e
 	}()
 
 	// only allow one recording at a time
-	cameraMutex.Lock()
-	defer cameraMutex.Unlock()
+	// also we do not want to queue up recordings because they would be at invalid times anyways
+	if !cameraSemaphone.TryAcquire(1) {
+		return nil
+	}
+	defer cameraSemaphone.Release(1)
 
 	recorder := NewRecorder(videoDevice, outputFilename)
 	if err := recorder.Open(); err != nil {

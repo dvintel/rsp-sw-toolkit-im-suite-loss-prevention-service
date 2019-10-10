@@ -20,18 +20,27 @@
 package config
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/configuration"
 	"strconv"
+	"strings"
 )
 
 type (
 	variables struct {
-		ServiceName, LoggingLevel, Port           string
-		TelemetryEndpoint, TelemetryDataStoreName string
-		VideoUrlBase, CoreCommandUrl              string
-		VideoDevice								  string
+		ServiceName, LoggingLevel, Port             string
+		TelemetryEndpoint, TelemetryDataStoreName   string
+		VideoUrlBase, CoreCommandUrl                string
+		VideoDevice                                 string
+		LiveView                                    bool
+		RecordingDuration                           int
+		VideoResolutionWidth, VideoResolutionHeight int
+		VideoOutputFps                              int
+		VideoOutputCodec, VideoOutputExtension      string
+		VideoCaptureFOURCC                          string
+		VideoCaptureBufferSize                      int
 	}
 )
 
@@ -48,30 +57,32 @@ func InitConfig() error {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
-	AppConfig.ServiceName, err = config.GetString("serviceName")
-	if err != nil {
-		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
-	}
+	AppConfig.ServiceName = getOrDefaultString(config, "serviceName", "Loss Prevention Example App")
+	AppConfig.LoggingLevel = getOrDefaultString(config, "loggingLevel", "info")
 
-	AppConfig.Port, err = config.GetString("port")
-	if err != nil {
-		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
-	}
+	AppConfig.TelemetryEndpoint = getOrDefaultString(config, "telemetryEndpoint", "")
+	AppConfig.TelemetryDataStoreName = getOrDefaultString(config, "telemetryDataStoreName", "")
 
-	// Set "debug" for development purposes. Nil or "" for Production.
-	AppConfig.LoggingLevel, err = config.GetString("loggingLevel")
-	if err != nil {
-		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
-	}
+	AppConfig.Port = getOrDefaultString(config, "port", "8080")
+	AppConfig.CoreCommandUrl = getOrDefaultString(config, "coreCommandUrl", "http://edgex-core-command:48082")
 
-	AppConfig.TelemetryEndpoint, err = config.GetString("telemetryEndpoint")
-	if err != nil {
-		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
+	AppConfig.LiveView = getOrDefaultBool(config, "liveView", true)
+	AppConfig.RecordingDuration = getOrDefaultInt(config, "recordingDuration", 15)
+	AppConfig.VideoResolutionWidth = getOrDefaultInt(config, "videoResolutionWidth", 1280)
+	AppConfig.VideoResolutionHeight = getOrDefaultInt(config, "videoResolutionHeight", 720)
+	AppConfig.VideoOutputFps = getOrDefaultInt(config, "videoOutputFps", 25)
+	AppConfig.VideoOutputCodec = getOrDefaultString(config, "videoOutputCodec", "avc1")
+	AppConfig.VideoOutputExtension = getOrDefaultString(config, "videoOutputExtension", ".mp4")
+	if !strings.HasPrefix(AppConfig.VideoOutputExtension, ".") {
+		return fmt.Errorf("videoOutputExtension must start with a period '.'")
 	}
-
-	AppConfig.TelemetryDataStoreName, err = config.GetString("telemetryDataStoreName")
-	if err != nil {
-		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
+	AppConfig.VideoCaptureFOURCC = getOrDefaultString(config, "videoCaptureFOURCC", "MJPG")
+	if len(AppConfig.VideoCaptureFOURCC) != 4 {
+		return fmt.Errorf("videoCaptureFOURCC must be a four-letter string such as 'MJPG'")
+	}
+	AppConfig.VideoCaptureBufferSize = getOrDefaultInt(config, "videoCaptureBufferSize", 3)
+	if AppConfig.VideoCaptureBufferSize < 1 {
+		return fmt.Errorf("videoCaptureBufferSize must be a value greater than 0")
 	}
 
 	if AppConfig.VideoUrlBase, err = config.GetString("videoUrlBase"); err != nil {
@@ -86,9 +97,25 @@ func InitConfig() error {
 		}
 	}
 
-	AppConfig.CoreCommandUrl = getOrDefaultString(config, "coreCommandUrl", "http://edgex-core-command:48082")
-
 	return nil
+}
+
+func getOrDefaultInt(config *configuration.Configuration, path string, defaultValue int) int {
+	value, err := config.GetInt(path)
+	if err != nil {
+		logrus.Debugf("%s was missing from configuration, setting to default value of %s", path, defaultValue)
+		return defaultValue
+	}
+	return value
+}
+
+func getOrDefaultBool(config *configuration.Configuration, path string, defaultValue bool) bool {
+	value, err := config.GetBool(path)
+	if err != nil {
+		logrus.Debugf("%s was missing from configuration, setting to default value of %s", path, defaultValue)
+		return defaultValue
+	}
+	return value
 }
 
 func getOrDefaultString(config *configuration.Configuration, path string, defaultValue string) string {
