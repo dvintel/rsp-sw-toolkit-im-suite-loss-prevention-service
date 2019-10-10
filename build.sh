@@ -17,6 +17,14 @@ export LIBRARY_PATH=${LD_LIBRARY_PATH}
 export CGO_LDFLAGS="-lpthread -ldl -lHeteroPlugin -lMKLDNNPlugin -lmyriadPlugin -linference_engine -lclDNNPlugin -lopencv_core -lopencv_videoio -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs -lopencv_objdetect -lopencv_features2d -lopencv_video -lopencv_dnn -lopencv_calib3d"
 printf "\e[32m [OK]\e[0m\n"
 
+printf "\e[36mRestoring go.sum file...\e[0m"
+mv -f /tmp/go.sum go.sum
+printf "\e[32m[OK]\e[0m\n"
+
 printf "\e[34mBuilding ${app_name}...\e[0m\n"
 GOOS=linux GOARCH=amd64 CGO_ENABLED=1 GO111MODULE=auto go build -tags openvino -v -o ./${app_name}
 printf "\e[34mBuild finished \e[32m[OK]\e[0m\n"
+
+printf "\e[2mDeleting go.sum file...\e[0m"
+rm -f go.sum
+printf "\e[2m\e[32m[OK]\e[0m\n"

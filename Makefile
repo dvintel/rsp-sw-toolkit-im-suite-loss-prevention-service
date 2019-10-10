@@ -30,21 +30,7 @@ test =	echo "Go Testing..."; \
 
 default: build
 
-GO = GOOS=linux GOARCH=amd64 CGO_ENABLED=1 GO111MODULE=auto go
-
-builder:
-	docker build --rm \
-		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
-		--build-arg http_proxy=$(http_proxy) \
-		--build-arg https_proxy=$(https_proxy) \
-		-f Dockerfile.builder \
-		--label "git_sha=$(GIT_SHA)" \
-		-t $(BUILDER_IMAGE) \
-		.
-
-build: loss-prevention-service
-
-loss-prevention-service:
+build: vino Makefile build.sh
 	docker run \
 		--rm \
 		-it \
@@ -54,20 +40,21 @@ loss-prevention-service:
 		-e GIT_TOKEN \
 		-w /app \
 		-e GOCACHE=/cache \
+		-e HOST_UID=$${UID} \
 		$(BUILDER_IMAGE) \
 		bash -c '/app/build.sh'
 
-docker: build
+docker: build Dockerfile
 	docker build --rm \
 		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
 		--build-arg http_proxy=$(http_proxy) \
 		--build-arg https_proxy=$(https_proxy) \
-		-f Dockerfile_dev \
+		-f Dockerfile \
 		--label "git_sha=$(GIT_SHA)" \
 		-t rsp/$(PROJECT_NAME):dev \
 		.
 
-vino:
+vino: go.mod Dockerfile.vino
 	docker build \
 		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
 		--build-arg http_proxy=$(http_proxy) \

@@ -24,16 +24,16 @@ RUN go version
 
 RUN apt-get install -y git
 
+RUN go get -u -d gocv.io/x/gocv
+RUN apt-get install -y libzmq3-dev
+
 # Authentication needed to pull git modules from github.impcloud.net
-RUN git config --global credential.helper store
 ARG GIT_TOKEN
-RUN set +x && echo "https://$GIT_TOKEN:x-oauth-basic@github.impcloud.net" > ~/.git-credentials
+RUN git config --global credential.helper store && \
+    echo "https://$GIT_TOKEN:x-oauth-basic@github.impcloud.net" > ~/.git-credentials
 
 WORKDIR /app
 # Download go modules first so they can be cached for faster subsequent builds
 COPY go.mod go.mod
-RUN go mod download && mv go.sum go.sum.bak
-
-RUN go get -u -d gocv.io/x/gocv
-
-RUN apt-get install -y libzmq3-dev
+RUN (go mod download && mv go.sum /tmp/go.sum) || \
+    (printf "\e[31mThere was an error downloading go module dependencies.\nPlease make sure you set \e[1mGIT_TOKEN\e[22;24m to your git auth token!\e[0m\n"; exit 1)
