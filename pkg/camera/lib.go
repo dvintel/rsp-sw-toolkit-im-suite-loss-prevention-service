@@ -88,7 +88,7 @@ func NewRecorder(videoDevice string, outputFilename string) *Recorder {
 		height:         videoHeight,
 		fps:            maxFps,
 		codec:          codec,
-		window: 		gocv.NewWindow(config.AppConfig.ServiceName),
+		window: 		gocv.NewWindow(config.AppConfig.ServiceName + " - OpenVINO"),
 
 		faceBuffer:  make(chan *FrameToken, 100),
 		writeBuffer: make(chan *FrameToken, 100),
@@ -225,7 +225,7 @@ func (recorder *Recorder) ProcessFaceQueue(done chan bool) {
 		}
 	}()
 
-	blue := color.RGBA{0, 0, 255, 0}
+	red := color.RGBA{255, 0, 0, 0}
 	logrus.Debug("ProcessFaceQueue() goroutine started")
 	for {
 		select {
@@ -236,8 +236,8 @@ func (recorder *Recorder) ProcessFaceQueue(done chan bool) {
 
 		case token := <-recorder.faceBuffer:
 			//if !recorder.foundFace {
-				rects := recorder.classifier.DetectMultiScaleWithParams(token.frame, 1.1, 4, 0,
-					image.Point{X: int(videoWidth / 10), Y: int(videoHeight / 10)}, image.Point{X: int(videoWidth / 4), Y: int(videoHeight / 4)})
+				rects := recorder.classifier.DetectMultiScaleWithParams(token.frame, 1.1, 6, 0,
+					image.Point{X: int(videoWidth / 10), Y: int(videoHeight / 10)}, image.Point{X: videoWidth * 0.8, Y: videoHeight * 0.8})
 
 				if len(rects) > 0 {
 					logrus.Debugf("Detected %v face(s)", len(rects))
@@ -249,7 +249,8 @@ func (recorder *Recorder) ProcessFaceQueue(done chan bool) {
 						}
 					}
 					for _, rect := range rects {
-						gocv.Rectangle(&token.frame, rect, blue, 1)
+						gocv.Rectangle(&token.frame, rect, red, 2)
+						gocv.PutText(&token.frame, "Bacon Thief!", image.Point{rect.Min.X, rect.Min.Y - 10}, gocv.FontHersheyComplex, 1, red, 3)
 					}
 
 					recorder.foundFace = true
