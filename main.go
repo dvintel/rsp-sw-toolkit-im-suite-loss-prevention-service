@@ -29,6 +29,7 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/edgexfoundry/go-mod-core-contracts/models"
@@ -158,7 +159,7 @@ func processEvents(edgexcontext *appcontext.Context, params ...interface{}) (boo
 		switch reading.Name {
 
 		case inventoryEvent:
-			logrus.Debugf("inventoryEvent data received: %s", reading.Value)
+			logrus.Debugf("inventoryEvent data received: %s", strings.ReplaceAll(strings.ReplaceAll(reading.Value, "\\", ""), "\"", "'"))
 
 			payload := new(lossprevention.DataPayload)
 			if err := jsonrpc.Decode(reading.Value, payload, nil); err != nil {
@@ -170,7 +171,7 @@ func processEvents(edgexcontext *appcontext.Context, params ...interface{}) (boo
 			}
 
 		case sensorConfigNotification:
-			logrus.Debugf("Received sensor config notification:\n%s", reading.Value)
+			logrus.Debugf("Received sensor config notification:\n%s", strings.ReplaceAll(strings.ReplaceAll(reading.Value, "\\", ""), "\"", "'"))
 
 			notification := new(jsonrpc.SensorConfigNotification)
 			if err := jsonrpc.Decode(reading.Value, notification, nil); err != nil {

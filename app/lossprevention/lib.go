@@ -39,18 +39,18 @@ func HandleDataPayload(payload *DataPayload) error {
 
 	for _, tag := range payload.TagEvent {
 		if tag.Event != moved || len(tag.LocationHistory) < 2 {
-			logrus.Debugf("skipping: %+v", tag)
+			//logrus.Debugf("skipping: %+v", tag)
 			continue
 		}
 
-		logrus.Debugf("location history  current: %+v", tag.LocationHistory[0])
-		logrus.Debugf("location history previous: %+v", tag.LocationHistory[1])
+		logrus.Debugf("location  current:  %+v", tag.LocationHistory[0])
+		logrus.Debugf("location previous:  %+v", tag.LocationHistory[1])
 
 		rsp := sensor.FindByAntennaAlias(tag.LocationHistory[0].Location)
-		logrus.Debugf("found current sensor: %+v", rsp)
+		logrus.Debugf("rsp  current: %+v", rsp)
 		if rsp != nil && rsp.IsExitSensor() {
 			rsp2 := sensor.FindByAntennaAlias(tag.LocationHistory[1].Location)
-			logrus.Debugf("found previous sensor: %+v", rsp2)
+			logrus.Debugf("rsp previous: %+v", rsp2)
 			if rsp2 != nil && !rsp2.IsExitSensor() {
 				// return so we do not keep checking
 				return triggerRecord(tag.ProductID)

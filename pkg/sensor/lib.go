@@ -9,6 +9,7 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/jsonrpc"
 	"io/ioutil"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -24,17 +25,13 @@ var (
 // FindByAntennaAlias is a backwards lookup of an alias to the sensor (RSP) it belongs to
 // Note that if more than one sensor has the same alias, it will just return the first match
 func FindByAntennaAlias(alias string) *RSP {
-	logrus.Debugf("looking for alias: %s", alias)
 	for _, rsp := range sensors {
-		logrus.Debugf("rsp: %+v", rsp)
 		for _, a := range rsp.Aliases {
-			logrus.Debugf("rsp.alias: %+v", a)
 			if a == alias {
 				return rsp
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -76,7 +73,7 @@ func QueryBasicInfoAllSensors() error {
 		return err
 	}
 
-	logrus.Debugf("received: %s", reading.Value)
+	logrus.Debugf("received: %s", strings.ReplaceAll(strings.ReplaceAll(reading.Value, "\\", ""), "\"", "'"))
 
 	deviceIds := new(jsonrpc.SensorDeviceIdsResponse)
 	if err := jsonrpc.Decode(reading.Value, deviceIds, nil); err != nil {
@@ -124,7 +121,7 @@ func ExecuteSensorCommand(deviceId string, commandName string) (*models.Reading,
 	if err != nil {
 		return nil, err
 	}
-	logrus.Info(string(body))
+	logrus.Info(strings.ReplaceAll(strings.ReplaceAll(string(body), "\\", ""), "\"", "'"))
 
 	evt := new(models.Event)
 	if err := evt.UnmarshalJSON(body); err != nil {
