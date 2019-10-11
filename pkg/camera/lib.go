@@ -146,9 +146,13 @@ func (recorder *Recorder) Open() error {
 
 func (recorder *Recorder) Begin() time.Time {
 	go recorder.ProcessFaceQueue(recorder.done)
-	go recorder.ProcessWriteQueue(recorder.done)
+	if recorder.outputFilename != "" {
+		go recorder.ProcessWriteQueue(recorder.done)
+	}
 	go recorder.ProcessWaitQueue(recorder.done)
-	recorder.window.ResizeWindow(recorder.width, recorder.height)
+	if recorder.liveView {
+		recorder.window.ResizeWindow(recorder.width, recorder.height)
+	}
 	return time.Now()
 }
 
@@ -308,6 +312,30 @@ func safeClose(c io.Closer) {
 	}
 }
 
+func SanityCheck() error {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Errorf("recovered from panic: %+v", r)
+		}
+	}()
+
+	if !cameraSemaphone.TryAcquire(1) {
+		return fmt.Errorf("unable to acquire camera lock")
+	}
+	defer cameraSemaphone.Release(1)
+
+	recorder := NewRecorder(config.AppConfig.VideoDevice, "")
+	recorder.liveView = false
+	if err := recorder.Open(); err != nil {
+		logrus.Errorf("error: %v", err)
+		return err
+	}
+	recorder.Begin()
+	recorder.Close()
+
+	return nil
+}
+
 func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) error {
 	defer func() {
 		if r := recover(); r != nil {
@@ -318,6 +346,7 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) e
 	// only allow one recording at a time
 	// also we do not want to queue up recordings because they would be at invalid times anyways
 	if !cameraSemaphone.TryAcquire(1) {
+		logrus.Debug("unable to acquire camera lock, we must already be recording. skipping.")
 		return nil
 	}
 	defer cameraSemaphone.Release(1)

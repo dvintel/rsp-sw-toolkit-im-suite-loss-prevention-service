@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/configuration"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -41,6 +42,8 @@ type (
 		VideoOutputCodec, VideoOutputExtension      string
 		VideoCaptureFOURCC                          string
 		VideoCaptureBufferSize                      int
+		EPCFilter, SKUFilter                        string
+		EPCFilterRegex, SKUFilterRegex              *regexp.Regexp
 	}
 )
 
@@ -97,7 +100,21 @@ func InitConfig() error {
 		}
 	}
 
+	AppConfig.EPCFilter = getOrDefaultString(config, "epcFilter", "*")
+	if AppConfig.EPCFilterRegex, err = regexp.Compile(filterToRegexPattern(AppConfig.EPCFilter)); err != nil {
+		return errors.Wrapf(err, "Unable to load config variables: %v", err)
+	}
+
+	AppConfig.SKUFilter = getOrDefaultString(config, "skuFilter", "*")
+	if AppConfig.SKUFilterRegex, err = regexp.Compile(filterToRegexPattern(AppConfig.SKUFilter)); err != nil {
+		return errors.Wrapf(err, "Unable to load config variables: %v", err)
+	}
+
 	return nil
+}
+
+func filterToRegexPattern(filter string) string {
+	return "^" + strings.ReplaceAll(filter, "*", ".*") + "$"
 }
 
 func getOrDefaultInt(config *configuration.Configuration, path string, defaultValue int) int {

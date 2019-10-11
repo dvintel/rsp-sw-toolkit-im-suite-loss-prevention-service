@@ -22,12 +22,17 @@ services:
     security_opt:
       - apparmor=unconfined
     environment:
+      serviceName: "Loss Prevention Example App"
       DISPLAY: unix:0
       loggingLevel: "debug"
+      videoUrlBase: "http://localhost:9091/material-dashboard/view.html?v="
+
 #      ipCameraStreamUrl: ""
       usbCameraDeviceIndex: 0
-      serviceName: "Loss Prevention Example App"
-      videoUrlBase: "http://localhost:9091/material-dashboard/view.html?v="
+
+      epcFilter: "3014*"
+      skuFilter: "*"
+
     volumes:
       - ./recordings:/recordings
       - /tmp/.X11-unix:/tmp/.X11-unix

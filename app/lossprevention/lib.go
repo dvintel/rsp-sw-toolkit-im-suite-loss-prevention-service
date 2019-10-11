@@ -30,33 +30,51 @@ import (
 
 const (
 	moved = "moved"
-
-	seconds          = 15
 	videoFilePattern = "/recordings/recording_%s_%v%s"
 )
 
 func HandleDataPayload(payload *DataPayload) error {
 
 	for _, tag := range payload.TagEvent {
-		if tag.Event != moved || len(tag.LocationHistory) < 2 {
-			//logrus.Debugf("skipping: %+v", tag)
+		if tag.Event != moved {
+			logrus.Debugf("skipping non-moved event: epc: %s (sku: %s), event: %s", tag.Epc, tag.ProductID, tag.Event)
+			continue
+		}
+		if len(tag.LocationHistory) < 2 {
+			logrus.Debugf("skipping tag with not enough location history: epc: %s (sku: %s)", tag.Epc, tag.ProductID)
 			continue
 		}
 
-		logrus.Debugf("location  current:  %+v", tag.LocationHistory[0])
-		logrus.Debugf("location previous:  %+v", tag.LocationHistory[1])
-
-		rsp := sensor.FindByAntennaAlias(tag.LocationHistory[0].Location)
-		logrus.Debugf("rsp  current: %+v", rsp)
-		if rsp != nil && rsp.IsExitSensor() {
-			rsp2 := sensor.FindByAntennaAlias(tag.LocationHistory[1].Location)
-			logrus.Debugf("rsp previous: %+v", rsp2)
-			if rsp2 != nil && !rsp2.IsExitSensor() {
-				// return so we do not keep checking
-				return triggerRecord(tag.ProductID)
-			}
+		if !config.AppConfig.SKUFilterRegex.MatchString(tag.ProductID) {
+			logrus.Debugf("skipping tag that does not match sku filter: epc: %s (sku: %s), filter: %s", tag.Epc, tag.ProductID, config.AppConfig.SKUFilter)
+			continue
+		}
+		if !config.AppConfig.EPCFilterRegex.MatchString(tag.Epc) {
+			logrus.Debugf("skipping tag that does not match epc filter: epc: %s (sku: %s), filter: %s", tag.Epc, tag.ProductID, config.AppConfig.EPCFilter)
+			continue
 		}
 
+		rsp := sensor.FindByAntennaAlias(tag.LocationHistory[0].Location)
+		logrus.Debugf("current: %+v", tag.LocationHistory[0])
+		logrus.Debugf("current: %+v", rsp)
+
+		if rsp == nil || !rsp.IsExitSensor() {
+			logrus.Debugf("skipping non-exiting tag: epc: %s (sku: %s)", tag.Epc, tag.ProductID)
+			continue
+		}
+
+		rsp2 := sensor.FindByAntennaAlias(tag.LocationHistory[1].Location)
+		logrus.Debugf("previous: %+v", tag.LocationHistory[1])
+		logrus.Debugf("previous: %+v", rsp2)
+
+		if rsp2 == nil || rsp2.IsExitSensor() {
+			logrus.Debugf("skipping exiting tag that was exiting before as well: epc: %s (sku: %s)", tag.Epc, tag.ProductID)
+			continue
+		}
+
+		logrus.Debugf("triggering on exiting tag: epc: %s (sku: %s)", tag.Epc, tag.ProductID)
+		// return so we do not keep checking
+		return triggerRecord(tag.ProductID)
 	}
 
 	return nil
@@ -66,7 +84,7 @@ func triggerRecord(productId string) error {
 
 	filename := fmt.Sprintf(videoFilePattern, productId, helper.UnixMilliNow(), config.AppConfig.VideoOutputExtension)
 	logrus.Debugf("recording filename: %s", filename)
-	go camera.RecordVideoToDisk(config.AppConfig.VideoDevice, seconds, filename)
+	go camera.RecordVideoToDisk(config.AppConfig.VideoDevice, config.AppConfig.RecordingDuration, filename)
 
 	return nil
 }

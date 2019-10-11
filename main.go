@@ -27,7 +27,6 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/camera"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/sensor"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"os"
 	"strings"
 	"time"
@@ -81,33 +80,15 @@ func main() {
 	// Connect to EdgeX zeroMQ bus
 	go receiveZMQEvents()
 
-	//ticker := time.NewTicker(60 * time.Second)
-	//
-	//go recordIt(time.Now())
-	//
-	//for {
-	//	select {
-	//	case t := <-ticker.C:
-	//		go recordIt(t)
-	//	}
-	//}
+	if err := camera.SanityCheck(); err != nil {
+		logrus.Errorf("error running sanity check: %v", err)
+	}
 
 	for {
 		time.Sleep(1 * time.Second)
 	}
 
 	log.WithField("Method", "main").Info("Completed.")
-}
-
-func recordIt(t time.Time) {
-	logrus.Debugf("ticker %+v", t)
-	logrus.Debugf("recording from camera")
-	filename := fmt.Sprintf("/recordings/test_%v%s", helper.UnixMilliNow(), config.AppConfig.VideoOutputExtension)
-	logrus.Debugf("recording filename: %s", filename)
-	if err := camera.RecordVideoToDisk(config.AppConfig.VideoDevice, 5, filename); err != nil {
-		log.Errorf("error: %+v", err)
-	}
-	logrus.Debugf("finished recording")
 }
 
 func initMetrics() {
@@ -145,7 +126,7 @@ func receiveZMQEvents() {
 	}
 }
 
-func processEvents(edgexcontext *appcontext.Context, params ...interface{}) (bool, interface{}) {
+func processEvents(_ *appcontext.Context, params ...interface{}) (bool, interface{}) {
 	if len(params) < 1 {
 		return false, nil
 	}
