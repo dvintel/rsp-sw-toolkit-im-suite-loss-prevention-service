@@ -44,7 +44,7 @@ build: vino Makefile build.sh
 		$(BUILDER_IMAGE) \
 		bash -c '/app/build.sh'
 
-docker: build Dockerfile
+docker: build openvino-runtime Dockerfile
 	docker build --rm \
 		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
 		--build-arg http_proxy=$(http_proxy) \
@@ -63,6 +63,16 @@ vino: go.mod Dockerfile.vino
 		-f Dockerfile.vino \
 		--label "git_sha=$(GIT_SHA)" \
 		-t rsp/openvino:dev \
+		.
+
+openvino-runtime: Dockerfile.runtime
+	docker build \
+		--build-arg http_proxy=$(http_proxy) \
+		--build-arg https_proxy=$(https_proxy) \
+		--build-arg LOCAL_USER=$$(id -u $$(logname)) \
+		-f Dockerfile.runtime \
+		--label "git_sha=$(GIT_SHA)" \
+		-t rsp/openvino-runtime:dev \
 		.
 
 iterate:

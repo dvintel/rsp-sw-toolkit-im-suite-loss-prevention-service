@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	moved = "moved"
+	moved            = "moved"
 	videoFilePattern = "/recordings/recording_%s_%v%s"
 )
 

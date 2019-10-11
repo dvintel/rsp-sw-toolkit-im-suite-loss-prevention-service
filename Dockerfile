@@ -1,4 +1,4 @@
-FROM rsp/openvino:dev
+FROM rsp/openvino-runtime:dev
 
 ADD loss-prevention-service entrypoint.sh /
 ADD /res/docker /res/docker
