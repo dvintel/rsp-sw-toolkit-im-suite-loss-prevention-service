@@ -55,18 +55,14 @@ func HandleDataPayload(payload *DataPayload) error {
 		}
 
 		rsp := sensor.FindByAntennaAlias(tag.LocationHistory[0].Location)
-		logrus.Debugf("current: %+v", tag.LocationHistory[0])
 		logrus.Debugf("current: %+v", rsp)
-
 		if rsp == nil || !rsp.IsExitSensor() {
 			logrus.Debugf("skipping non-exiting tag: epc: %s (sku: %s)", tag.Epc, tag.ProductID)
 			continue
 		}
 
 		rsp2 := sensor.FindByAntennaAlias(tag.LocationHistory[1].Location)
-		logrus.Debugf("previous: %+v", tag.LocationHistory[1])
 		logrus.Debugf("previous: %+v", rsp2)
-
 		if rsp2 == nil || rsp2.IsExitSensor() {
 			logrus.Debugf("skipping exiting tag that was exiting before as well: epc: %s (sku: %s)", tag.Epc, tag.ProductID)
 			continue

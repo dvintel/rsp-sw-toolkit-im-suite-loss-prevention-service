@@ -346,7 +346,7 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) e
 	// only allow one recording at a time
 	// also we do not want to queue up recordings because they would be at invalid times anyways
 	if !cameraSemaphone.TryAcquire(1) {
-		logrus.Debug("unable to acquire camera lock, we must already be recording. skipping.")
+		logrus.Warn("unable to acquire camera lock, we must already be recording. skipping.")
 		return nil
 	}
 	defer cameraSemaphone.Release(1)

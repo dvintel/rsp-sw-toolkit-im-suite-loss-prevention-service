@@ -2,8 +2,7 @@
 SERVICE_NAME ?= loss-prevention
 PROJECT_NAME ?= loss-prevention-service
 
-#BUILDER_IMAGE ?= rsp/$(PROJECT_NAME)-builder:dev
-BUILDER_IMAGE ?= rsp/openvino:dev
+BUILDER_IMAGE ?= rsp/gocv-openvino-builder:dev
 
 GIT_SHA = $(shell git rev-parse HEAD)
 
@@ -26,43 +25,21 @@ log = docker-compose logs $1 $2 2>&1
 test =	echo "Go Testing..."; \
 		go test ./... $1
 
-.PHONY: build build-builder loss-prevention-service docker
+.PHONY: build compile docker iterate iterate-d tail start stop rm deploy kill down fmt ps
 
 default: build
 
-build: vino Makefile build.sh
-	docker run \
-		--rm \
-		-it \
-		--name=gobuilder \
-		-v $(PROJECT_NAME)-cache:/cache \
-		-v $$(pwd):/app \
-		-e GIT_TOKEN \
-		-w /app \
-		-e GOCACHE=/cache \
-		-e LOCAL_USER=$$(id -u $$(logname)) \
-		$(BUILDER_IMAGE) \
-		bash -c '/app/build.sh'
+build: compile docker
 
-docker: build openvino-runtime Dockerfile
-	docker build --rm \
-		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
-		--build-arg http_proxy=$(http_proxy) \
-		--build-arg https_proxy=$(https_proxy) \
-		-f Dockerfile \
-		--label "git_sha=$(GIT_SHA)" \
-		-t rsp/$(PROJECT_NAME):dev \
-		.
-
-vino: go.mod Dockerfile.vino
+openvino-builder: go.mod Dockerfile.builder
 	docker build \
 		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
 		--build-arg http_proxy=$(http_proxy) \
 		--build-arg https_proxy=$(https_proxy) \
 		--build-arg LOCAL_USER=$$(id -u $$(logname)) \
-		-f Dockerfile.vino \
+		-f Dockerfile.builder \
 		--label "git_sha=$(GIT_SHA)" \
-		-t rsp/openvino:dev \
+		-t $(BUILDER_IMAGE) \
 		.
 
 openvino-runtime: Dockerfile.runtime
@@ -75,16 +52,43 @@ openvino-runtime: Dockerfile.runtime
 		-t rsp/openvino-runtime:dev \
 		.
 
+compile: openvino-builder Makefile build.sh
+	docker run \
+		--rm \
+		-it \
+		--name=$(PROJECT_NAME)-builder \
+		-v $(PROJECT_NAME)-cache:/cache \
+		-v $$(pwd):/app \
+		-e GIT_TOKEN \
+		-w /app \
+		-e GOCACHE=/cache \
+		-e LOCAL_USER=$$(id -u $$(logname)) \
+		$(BUILDER_IMAGE) \
+		bash -c '/app/build.sh'
+
+docker: compile openvino-runtime Dockerfile
+	docker build --rm \
+		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
+		--build-arg http_proxy=$(http_proxy) \
+		--build-arg https_proxy=$(https_proxy) \
+		-f Dockerfile \
+		--label "git_sha=$(GIT_SHA)" \
+		-t rsp/$(PROJECT_NAME):dev \
+		.
+
+delete-all-recordings:
+	sudo rm -rf recordings/*
+
 iterate:
 	$(compose) down --remove-orphans &
-	$(MAKE) build docker
+	$(MAKE) build
 	# make sure it has stopped before we try and start it again
 	$(call wait_for_service, stop, !)
 	$(compose) up --remove-orphans
 
 iterate-d:
 	$(compose) down --remove-orphans &
-	$(MAKE) build docker
+	$(MAKE) build
 	# make sure it has stopped before we try and start it again
 	$(call wait_for_service, stop, !)
 	$(compose) up --remove-orphans -d

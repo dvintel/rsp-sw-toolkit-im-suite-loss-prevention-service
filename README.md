@@ -18,7 +18,7 @@
 
 Run this command:
 ```bash
-make builder && make iterate
+make build start
 ```
 
 This command will create the docker builder image, compile the source code, builds application docker image, starts app in foreground
@@ -31,14 +31,9 @@ make builder
 ```
 
 #### Compile and Run
-Compile the Go source code
+Compile the Go source code and builder docker container
 ```bash
 make build
-```
-
-Create the Docker image
-```bash
-make docker
 ```
 
 Start the docker-compose containers in the foreground
