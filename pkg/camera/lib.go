@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"gocv.io/x/gocv"
 	"golang.org/x/sync/semaphore"
 	"image"
@@ -31,6 +32,7 @@ import (
 	"io"
 	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -42,16 +44,24 @@ const (
 
 var (
 	cameraSemaphone = semaphore.NewWeighted(1)
+
+	red   = color.RGBA{255, 0, 0, 0}
+	green = color.RGBA{0, 255, 0, 0}
+	blue  = color.RGBA{0, 0, 255, 0}
 )
 
 type FrameToken struct {
-	frame     gocv.Mat
-	waitGroup sync.WaitGroup
+	startTS     int64
+	readTS      int64
+	processedTS int64
+	frame       gocv.Mat
+	waitGroup   sync.WaitGroup
 }
 
 func (recorder *Recorder) NewFrameToken() *FrameToken {
 	return &FrameToken{
-		frame: gocv.NewMat(),
+		startTS: helper.UnixMilliNow(),
+		frame:   gocv.NewMat(),
 	}
 }
 
@@ -122,13 +132,24 @@ func (recorder *Recorder) Open() error {
 	if recorder.webcam, err = gocv.OpenVideoCapture(recorder.videoDevice); err != nil {
 		return errors.Wrapf(err, "Error opening video capture device: %+v", recorder.videoDevice)
 	}
+
 	// Note: setting the video capture four cc is very important for performance reasons.
 	// 		 it should also be set before applying any size or fps configurations.
-	recorder.webcam.Set(gocv.VideoCaptureFOURCC, codecToFloat64(config.AppConfig.VideoCaptureFOURCC))
-	recorder.webcam.Set(gocv.VideoCaptureFrameWidth, float64(recorder.width))
-	recorder.webcam.Set(gocv.VideoCaptureFrameHeight, float64(recorder.height))
-	recorder.webcam.Set(gocv.VideoCaptureFPS, recorder.fps)
-	recorder.webcam.Set(gocv.VideoCaptureBufferSize, float64(config.AppConfig.VideoCaptureBufferSize))
+	if config.AppConfig.VideoCaptureFOURCC != "" {
+		recorder.webcam.Set(gocv.VideoCaptureFOURCC, codecToFloat64(config.AppConfig.VideoCaptureFOURCC))
+	}
+	if recorder.width != 0 {
+		recorder.webcam.Set(gocv.VideoCaptureFrameWidth, float64(recorder.width))
+	}
+	if recorder.height != 0 {
+		recorder.webcam.Set(gocv.VideoCaptureFrameHeight, float64(recorder.height))
+	}
+	if recorder.fps != 0 {
+		recorder.webcam.Set(gocv.VideoCaptureFPS, recorder.fps)
+	}
+	if config.AppConfig.VideoCaptureBufferSize != 0 {
+		recorder.webcam.Set(gocv.VideoCaptureBufferSize, float64(config.AppConfig.VideoCaptureBufferSize))
+	}
 
 	// load classifier to recognize faces
 	classifier := gocv.NewCascadeClassifier()
@@ -139,6 +160,8 @@ func (recorder *Recorder) Open() error {
 
 	// skip the first frame (sometimes it takes longer to read, which affects the smoothness of the video)
 	recorder.webcam.Grab(1)
+
+	logrus.Debugf("input codec: %s", recorder.webcam.CodecString())
 
 	logrus.Debug("Open() completed")
 	return nil
@@ -180,8 +203,15 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 
 		case frameToken := <-recorder.waitBuffer:
 			frameToken.waitGroup.Wait()
+			frameToken.processedTS = helper.UnixMilliNow()
 
 			if recorder.liveView {
+				if config.AppConfig.ShowVideoDebugStats {
+					gocv.PutText(&frameToken.frame, "   Read: "+strconv.FormatInt(frameToken.readTS-frameToken.startTS, 10), image.Point{5, 25}, gocv.FontHersheySimplex, 0.75, green, 2)
+					gocv.PutText(&frameToken.frame, "Process: "+strconv.FormatInt(frameToken.processedTS-frameToken.readTS, 10), image.Point{5, 60}, gocv.FontHersheySimplex, 0.75, green, 2)
+					gocv.PutText(&frameToken.frame, "    FPS: "+strconv.FormatFloat(1.0/(float64(frameToken.readTS-frameToken.startTS)/1000.0), 'f', 1, 64), image.Point{5, 95}, gocv.FontHersheySimplex, 0.75, green, 2)
+				}
+
 				recorder.window.IMShow(frameToken.frame)
 				recorder.window.WaitKey(1)
 				//
@@ -235,7 +265,6 @@ func (recorder *Recorder) ProcessFaceQueue(done chan bool) {
 		}
 	}()
 
-	red := color.RGBA{255, 0, 0, 0}
 	logrus.Debug("ProcessFaceQueue() goroutine started")
 	for {
 		select {
@@ -260,7 +289,7 @@ func (recorder *Recorder) ProcessFaceQueue(done chan bool) {
 				}
 				for _, rect := range rects {
 					gocv.Rectangle(&token.frame, rect, red, 2)
-					gocv.PutText(&token.frame, "Bacon Thief!", image.Point{rect.Min.X, rect.Min.Y - 10}, gocv.FontHersheyComplex, 1, red, 3)
+					gocv.PutText(&token.frame, "Bacon Thief!", image.Point{rect.Min.X, rect.Min.Y - 10}, gocv.FontHersheySimplex, 1, red, 2)
 				}
 
 				recorder.foundFace = true
@@ -361,13 +390,14 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) e
 
 	begin := recorder.Begin()
 	frameCount := int(recorder.fps * float64(seconds))
+
 	for i := 0; i < frameCount; i++ {
 
 		token := recorder.NewFrameToken()
-
 		if ok := recorder.webcam.Read(&token.frame); !ok {
 			return fmt.Errorf("unable to read from webcam. device closed: %+v", recorder.videoDevice)
 		}
+		token.readTS = helper.UnixMilliNow()
 
 		if token.frame.Empty() {
 			logrus.Debug("skipping empty frame from webcam")

@@ -35,7 +35,7 @@ type (
 		TelemetryEndpoint, TelemetryDataStoreName   string
 		VideoUrlBase, CoreCommandUrl                string
 		VideoDevice                                 string
-		LiveView                                    bool
+		LiveView, ShowVideoDebugStats               bool
 		RecordingDuration                           int
 		VideoResolutionWidth, VideoResolutionHeight int
 		VideoOutputFps                              int
@@ -70,6 +70,7 @@ func InitConfig() error {
 	AppConfig.CoreCommandUrl = getOrDefaultString(config, "coreCommandUrl", "http://edgex-core-command:48082")
 
 	AppConfig.LiveView = getOrDefaultBool(config, "liveView", true)
+	AppConfig.ShowVideoDebugStats = getOrDefaultBool(config, "showVideoDebugStats", false)
 	AppConfig.RecordingDuration = getOrDefaultInt(config, "recordingDuration", 15)
 	AppConfig.VideoResolutionWidth = getOrDefaultInt(config, "videoResolutionWidth", 1280)
 	AppConfig.VideoResolutionHeight = getOrDefaultInt(config, "videoResolutionHeight", 720)
@@ -80,8 +81,8 @@ func InitConfig() error {
 		return fmt.Errorf("videoOutputExtension must start with a period '.'")
 	}
 	AppConfig.VideoCaptureFOURCC = getOrDefaultString(config, "videoCaptureFOURCC", "MJPG")
-	if len(AppConfig.VideoCaptureFOURCC) != 4 {
-		return fmt.Errorf("videoCaptureFOURCC must be a four-letter string such as 'MJPG'")
+	if len(AppConfig.VideoCaptureFOURCC) != 4 && AppConfig.VideoCaptureFOURCC != "" {
+		return fmt.Errorf("videoCaptureFOURCC must be a four-letter string such as 'MJPG', or an empty-string to disable setting this property: \"\"")
 	}
 	AppConfig.VideoCaptureBufferSize = getOrDefaultInt(config, "videoCaptureBufferSize", 3)
 	if AppConfig.VideoCaptureBufferSize < 1 {
