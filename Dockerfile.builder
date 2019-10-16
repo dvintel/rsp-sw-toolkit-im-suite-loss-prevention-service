@@ -39,6 +39,10 @@ RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCT
     cd /opt/intel/openvino/deployment_tools/inference_engine/samples && \
     ./build_samples.sh
 
+#    pip3 install -r /opt/intel/openvino/deployment_tools/open_model_zoo/tools/downloader/requirements.in && \
+#    mkdir -p /opt/intel/openvino/models && \
+#    /opt/intel/openvino/deployment_tools/open_model_zoo/tools/downloader/downloader.py --all -o /opt/intel/openvino/models
+
 FROM openvino-builder as gocv-openvino-builder
 # Install Go 1.12
 RUN add-apt-repository ppa:longsleep/golang-backports -y && \

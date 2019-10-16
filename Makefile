@@ -2,7 +2,8 @@
 SERVICE_NAME ?= loss-prevention
 PROJECT_NAME ?= loss-prevention-service
 
-BUILDER_IMAGE ?= rsp/gocv-openvino-builder:dev
+BUILDER_IMAGE ?= gocv-openvino-builder
+RUNTIME_IMAGE ?= openvino-runtime
 
 GIT_SHA = $(shell git rev-parse HEAD)
 
@@ -25,7 +26,7 @@ log = docker-compose logs $1 $2 2>&1
 test =	echo "Go Testing..."; \
 		go test ./... $1
 
-.PHONY: build compile docker iterate iterate-d tail start stop rm deploy kill down fmt ps
+.PHONY: build compile docker iterate iterate-d tail start stop rm deploy kill down fmt ps shell
 
 default: build
 
@@ -39,7 +40,7 @@ openvino-builder: go.mod Dockerfile.builder
 		--build-arg LOCAL_USER=$$(id -u $$(logname)) \
 		-f Dockerfile.builder \
 		--label "git_sha=$(GIT_SHA)" \
-		-t $(BUILDER_IMAGE) \
+		-t rsp/$(BUILDER_IMAGE):dev \
 		.
 
 openvino-runtime: Dockerfile.runtime
@@ -49,7 +50,7 @@ openvino-runtime: Dockerfile.runtime
 		--build-arg LOCAL_USER=$$(id -u $$(logname)) \
 		-f Dockerfile.runtime \
 		--label "git_sha=$(GIT_SHA)" \
-		-t rsp/openvino-runtime:dev \
+		-t rsp/$(RUNTIME_IMAGE):dev \
 		.
 
 compile: openvino-builder Makefile build.sh
@@ -63,7 +64,7 @@ compile: openvino-builder Makefile build.sh
 		-w /app \
 		-e GOCACHE=/cache \
 		-e LOCAL_USER=$$(id -u $$(logname)) \
-		$(BUILDER_IMAGE) \
+		rsp/$(BUILDER_IMAGE):dev \
 		bash -c '/app/build.sh'
 
 docker: compile openvino-runtime Dockerfile
@@ -132,3 +133,11 @@ force-test:
 ps:
 	$(compose) ps
 
+app-shell:
+	docker run -it --rm --entrypoint /bin/bash rsp/$(PROJECT_NAME):dev
+
+builder-shell:
+	docker run -it --rm --entrypoint /bin/bash rsp/$(BUILDER_IMAGE):dev
+
+runtime-shell:
+	docker run -it --rm --entrypoint /bin/bash rsp/$(RUNTIME_IMAGE):dev

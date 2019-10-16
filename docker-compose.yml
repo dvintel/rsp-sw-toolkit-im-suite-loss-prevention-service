@@ -39,7 +39,7 @@ services:
 #      ipCameraStreamUrl: ""
       usbCameraDeviceIndex: 0
 
-      epcFilter: "3014*"
+      epcFilter: "*"
       skuFilter: "*"
 
     volumes:

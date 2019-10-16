@@ -40,6 +40,11 @@ import (
 
 const (
 	xmlFile = "./res/docker/haarcascade_frontalface_default.xml"
+
+	font          = gocv.FontHersheySimplex
+	fontScale     = 0.75
+	fontThickness = 2
+	textPadding   = 5
 )
 
 var (
@@ -51,11 +56,18 @@ var (
 )
 
 type FrameToken struct {
-	startTS     int64
-	readTS      int64
-	processedTS int64
-	frame       gocv.Mat
-	waitGroup   sync.WaitGroup
+	startTS      int64
+	readTS       int64
+	processedTS  int64
+	frame        gocv.Mat
+	waitGroup    sync.WaitGroup
+	overlays     []FrameOverlay
+	overlayMutex sync.Mutex
+}
+
+type FrameOverlay struct {
+	rect image.Rectangle
+	text string
 }
 
 func (recorder *Recorder) NewFrameToken() *FrameToken {
@@ -79,10 +91,12 @@ type Recorder struct {
 
 	webcam     *gocv.VideoCapture
 	classifier *gocv.CascadeClassifier
-	writer     *gocv.VideoWriter
-	window     *gocv.Window
+	//net	       gocv.Net
+	writer *gocv.VideoWriter
+	window *gocv.Window
 
-	faceBuffer  chan *FrameToken
+	faceBuffer chan *FrameToken
+	//vinoBuffer  chan *FrameToken
 	writeBuffer chan *FrameToken
 	waitBuffer  chan *FrameToken
 }
@@ -98,9 +112,10 @@ func NewRecorder(videoDevice string, outputFilename string) *Recorder {
 		codec:          config.AppConfig.VideoOutputCodec,
 		window:         gocv.NewWindow(config.AppConfig.ServiceName + " - OpenVINO"),
 
-		faceBuffer:  make(chan *FrameToken, 100),
-		writeBuffer: make(chan *FrameToken, 100),
-		waitBuffer:  make(chan *FrameToken, 100),
+		faceBuffer: make(chan *FrameToken, 10),
+		//vinoBuffer:  make(chan *FrameToken, 10),
+		writeBuffer: make(chan *FrameToken, 10),
+		waitBuffer:  make(chan *FrameToken, 10),
 		done:        make(chan bool),
 	}
 
@@ -158,6 +173,16 @@ func (recorder *Recorder) Open() error {
 		return fmt.Errorf("error reading cascade file: %v", xmlFile)
 	}
 
+	//caffeModel := "/opt/intel/openvino/models/intel/face-detection-retail-0004/INT8/face-detection-retail-0004.bin"
+	//protoModel := "/opt/intel/openvino/models/intel/face-detection-retail-0004/INT8/face-detection-retail-0004.xml"
+	//recorder.net = gocv.ReadNet(caffeModel, protoModel)
+	//if recorder.net.Empty() {
+	//	return fmt.Errorf("error reading network model %v, %v", caffeModel, protoModel)
+	//}
+	//
+	//recorder.net.SetPreferableBackend(gocv.NetBackendType(gocv.NetBackendOpenVINO))
+	//recorder.net.SetPreferableTarget(gocv.NetTargetType(gocv.NetTargetCPU))
+
 	// skip the first frame (sometimes it takes longer to read, which affects the smoothness of the video)
 	recorder.webcam.Grab(1)
 
@@ -169,6 +194,7 @@ func (recorder *Recorder) Open() error {
 
 func (recorder *Recorder) Begin() time.Time {
 	go recorder.ProcessFaceQueue(recorder.done)
+	//go recorder.ProcessOpenVINOQueue(recorder.done)
 	if recorder.outputFilename != "" {
 		go recorder.ProcessWriteQueue(recorder.done)
 	}
@@ -193,6 +219,11 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 		}
 	}()
 
+	// for debug stats
+	var frameCount, processTotal, readTotal float64
+	// pre-compute the x location of the avg stats
+	x2 := gocv.GetTextSize("Avg Process: 99.9", font, fontScale, fontThickness).X + textPadding
+
 	logrus.Debug("ProcessWaitQueue() goroutine started")
 	for {
 		select {
@@ -207,10 +238,27 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 
 			if recorder.liveView {
 				if config.AppConfig.ShowVideoDebugStats {
-					gocv.PutText(&frameToken.frame, "   Read: "+strconv.FormatInt(frameToken.readTS-frameToken.startTS, 10), image.Point{5, 25}, gocv.FontHersheySimplex, 0.75, green, 2)
-					gocv.PutText(&frameToken.frame, "Process: "+strconv.FormatInt(frameToken.processedTS-frameToken.readTS, 10), image.Point{5, 60}, gocv.FontHersheySimplex, 0.75, green, 2)
-					gocv.PutText(&frameToken.frame, "    FPS: "+strconv.FormatFloat(1.0/(float64(frameToken.readTS-frameToken.startTS)/1000.0), 'f', 1, 64), image.Point{5, 95}, gocv.FontHersheySimplex, 0.75, green, 2)
+					frameCount++
+					processTotal += float64(frameToken.processedTS - frameToken.readTS)
+					readTotal += float64(frameToken.readTS - frameToken.startTS)
+
+					// Instant
+					gocv.PutText(&frameToken.frame, "   Read: "+strconv.FormatInt(frameToken.readTS-frameToken.startTS, 10), image.Point{textPadding, 25}, font, fontScale, green, fontThickness)
+					gocv.PutText(&frameToken.frame, "Process: "+strconv.FormatInt(frameToken.processedTS-frameToken.readTS, 10), image.Point{textPadding, 60}, font, fontScale, green, fontThickness)
+					gocv.PutText(&frameToken.frame, "    FPS: "+strconv.FormatFloat(1.0/(float64(frameToken.readTS-frameToken.startTS)/1000.0), 'f', 1, 64), image.Point{textPadding, 95}, font, fontScale, green, fontThickness)
+
+					// Average
+					gocv.PutText(&frameToken.frame, "   Avg Read: "+strconv.FormatFloat(readTotal/frameCount, 'f', 1, 64), image.Point{x2, 25}, font, fontScale, green, fontThickness)
+					gocv.PutText(&frameToken.frame, "Avg Process: "+strconv.FormatFloat(processTotal/frameCount, 'f', 1, 64), image.Point{x2, 60}, font, fontScale, green, fontThickness)
+					gocv.PutText(&frameToken.frame, "    Avg FPS: "+strconv.FormatFloat(1.0/((readTotal/frameCount)/1000.0), 'f', 1, 64), image.Point{x2, 95}, font, fontScale, green, fontThickness)
 				}
+
+				frameToken.overlayMutex.Lock()
+				for _, overlay := range frameToken.overlays {
+					gocv.Rectangle(&frameToken.frame, overlay.rect, red, fontThickness)
+					gocv.PutText(&frameToken.frame, overlay.text, image.Point{overlay.rect.Min.X, overlay.rect.Min.Y - 10}, font, 1, red, fontThickness)
+				}
+				frameToken.overlayMutex.Unlock()
 
 				recorder.window.IMShow(frameToken.frame)
 				recorder.window.WaitKey(1)
@@ -287,10 +335,12 @@ func (recorder *Recorder) ProcessFaceQueue(done chan bool) {
 						gocv.IMWrite(fmt.Sprintf("%s.face.%d.jpg", prefix, i), token.frame.Region(rect))
 					}
 				}
+
+				token.overlayMutex.Lock()
 				for _, rect := range rects {
-					gocv.Rectangle(&token.frame, rect, red, 2)
-					gocv.PutText(&token.frame, "Bacon Thief!", image.Point{rect.Min.X, rect.Min.Y - 10}, gocv.FontHersheySimplex, 1, red, 2)
+					token.overlays = append(token.overlays, FrameOverlay{rect, "Bacon Thief!"})
 				}
+				token.overlayMutex.Unlock()
 
 				recorder.foundFace = true
 			}
@@ -299,6 +349,32 @@ func (recorder *Recorder) ProcessFaceQueue(done chan bool) {
 		}
 	}
 }
+
+//func (recorder *Recorder) ProcessOpenVINOQueue(done chan bool) {
+//	defer func() {
+//		if r := recover(); r != nil {
+//			logrus.Errorf("recovered from panic: %+v", r)
+//		}
+//	}()
+//
+//	logrus.Debug("ProcessOpenVINOQueue() goroutine started")
+//	for {
+//		select {
+//		case <-done:
+//			logrus.Debug("ProcessOpenVINOQueue() goroutine completed")
+//			close(recorder.vinoBuffer)
+//			return
+//
+//		case token := <-recorder.vinoBuffer:
+//			//blob := gocv.BlobFromImage(token.frame, 1.0, image.Point{recorder.width, recorder.height}, gocv.Scalar{}, true, false)
+//			//recorder.net.SetInput(blob, "vino")
+//			//prob := recorder.net.Forward("vino")
+//			////minVal, maxVal, minLoc, maxLoc := gocv.MinMaxLoc(prob)
+//
+//			token.waitGroup.Done()
+//		}
+//	}
+//}
 
 func (recorder *Recorder) Close() {
 	defer func() {
@@ -316,6 +392,7 @@ func (recorder *Recorder) Close() {
 	safeClose(recorder.webcam)
 	safeClose(recorder.writer)
 	safeClose(recorder.classifier)
+	//safeClose(&recorder.net)
 	safeClose(recorder.window)
 
 	logrus.Debug("Close() completed")
@@ -405,7 +482,7 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) e
 		}
 
 		// Add 2 (one for faceBuffer, another for writeBuffer)
-		token.waitGroup.Add(2)
+		token.waitGroup.Add(fontThickness)
 		recorder.faceBuffer <- token
 		recorder.writeBuffer <- token
 
