@@ -78,7 +78,7 @@ docker: compile openvino-runtime Dockerfile
 		.
 
 delete-all-recordings:
-	sudo rm -rf recordings/*
+	sudo find recordings/ -type f -delete
 
 iterate:
 	$(compose) down --remove-orphans &

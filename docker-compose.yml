@@ -29,9 +29,9 @@ services:
       liveView: "true"
       showVideoDebugStats: "true"
       videoCaptureFOURCC: "MJPG"
-      recordingDuration: 15
-      videoResolutionWidth: 1280
-      videoResolutionHeight: 720
+      recordingDuration: 150
+      videoResolutionWidth: 640
+      videoResolutionHeight: 480
       videoOutputFps: 25
       videoOutputCodec: "avc1"
       videoOutputExtension: ".mp4"
@@ -40,7 +40,7 @@ services:
       usbCameraDeviceIndex: 0
 
       epcFilter: "*"
-#      epcFilter: "3035*72[CB][0-6EF]"
+      #      epcFilter: "3035*72[CB][0-6EF]"
       skuFilter: "*"
 
     volumes:

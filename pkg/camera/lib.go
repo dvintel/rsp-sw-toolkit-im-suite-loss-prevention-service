@@ -53,6 +53,9 @@ var (
 	red   = color.RGBA{255, 0, 0, 0}
 	green = color.RGBA{0, 255, 0, 0}
 	blue  = color.RGBA{0, 0, 255, 0}
+	orange = color.RGBA{255, 255, 0, 0}
+	white = color.RGBA{255, 255, 255, 0}
+	purple = color.RGBA{255, 0, 255, 0}
 
 	cascadeFiles = []CascadeFile{
 		{
@@ -64,47 +67,84 @@ var (
 				thickness: 2,
 			},
 			detectParams:DetectParams{
-				scale:        1.2,
+				scale:        1.4,
 				minNeighbors: 4,
 				flags:        0,
-				minScaleX:    0.1,
-				minScaleY:    0.1,
+				minScaleX:    0.05,
+				minScaleY:    0.05,
 				maxScaleX:    0.8,
 				maxScaleY:    0.8,
 			},
 		},
-		//{
-		//	name: "eye",
-		//	filename: "haarcascade_eye.xml",
-		//	drawOptions: DrawOptions{
-		//		color: blue,
-		//		thickness: 1,
-		//	},
-		//	detectParams:DetectParams{
-		//		scale:        1.2,
-		//		minNeighbors: 4,
-		//		flags:        0,
-		//		minScaleX:    0.04,
-		//		minScaleY:    0.04,
-		//		maxScaleX:    0.08,
-		//		maxScaleY:    0.08,
-		//	},
-		//},
+		// {
+		// 	name:     "profile face",
+		// 	filename: "haarcascade_profileface.xml",
+		// 	drawOptions: DrawOptions{
+		// 		annotation: "Employee",
+		// 		color:      blue,
+		// 		thickness: 2,
+		// 	},
+		// 	detectParams:DetectParams{
+		// 		scale:        1.4,
+		// 		minNeighbors: 4,
+		// 		flags:        0,
+		// 		minScaleX:    0.1,
+		// 		minScaleY:    0.1,
+		// 		maxScaleX:    0.2,
+		// 		maxScaleY:    0.2,
+		// 	},
+		// },
+		// {
+		// 	name: "eye",
+		// 	filename: "haarcascade_eye.xml",
+		// 	drawOptions: DrawOptions{
+		// 		color: blue,
+		// 		thickness: 1,
+		// 	},
+		// 	detectParams:DetectParams{
+		// 		scale:        1.5,
+		// 		minNeighbors: 5,
+		// 		flags:        0,
+		// 		minScaleX:    0.01,
+		// 		minScaleY:    0.01,
+		// 		maxScaleX:    0.1,
+		// 		maxScaleY:    0.1,
+		// 	},
+		// },
 		{
 			name: "upper body",
 			filename: "haarcascade_upperbody.xml",
 			drawOptions: DrawOptions{
-				color: green,
-				thickness: 1,
+				color: white,
+				thickness: 2,
+				annotation: "Employee",
 			},
 			detectParams:DetectParams{
-				scale:        1.3,
-				minNeighbors: 4,
+				scale:        1.5,
+				minNeighbors: 3,
 				flags:        0,
-				minScaleX:    0.05,
+				minScaleX:    0.1,
 				minScaleY:    0.1,
-				maxScaleX:    0.5,
-				maxScaleY:    1.0,
+				maxScaleX:    0.75,
+				maxScaleY:    0.75,
+			},
+		},
+		{
+			name: "full body",
+			filename: "haarcascade_fullbody.xml",
+			drawOptions: DrawOptions{
+				color: orange,
+				thickness: 2,
+				annotation: "Customer",
+			},
+			detectParams:DetectParams{
+				scale:        1.4,
+				minNeighbors: 2,
+				flags:        0,
+				minScaleX:    0.1,
+				minScaleY:    0.1,
+				maxScaleX:    0.6,
+				maxScaleY:    0.8,
 			},
 		},
 	}
@@ -297,7 +337,8 @@ func (recorder *Recorder) Begin() time.Time {
 	go recorder.ProcessWaitQueue(recorder.done)
 
 	if recorder.liveView {
-		recorder.window.ResizeWindow(recorder.width, recorder.height)
+		recorder.window.ResizeWindow(1920, 1080)
+		recorder.window.SetWindowProperty(gocv.WindowPropertyFullscreen, gocv.WindowFullscreen)
 	}
 
 	return time.Now()
@@ -343,12 +384,14 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 					// Instant
 					gocv.PutText(&frameToken.frame, "   Read: "+strconv.FormatInt(frameToken.readTS-frameToken.startTS, 10), image.Point{textPadding, 25}, font, fontScale, green, fontThickness)
 					gocv.PutText(&frameToken.frame, "Process: "+strconv.FormatInt(frameToken.processedTS-frameToken.readTS, 10), image.Point{textPadding, 60}, font, fontScale, green, fontThickness)
-					gocv.PutText(&frameToken.frame, "    FPS: "+strconv.FormatFloat(1.0/(float64(frameToken.readTS-frameToken.startTS)/1000.0), 'f', 1, 64), image.Point{textPadding, 95}, font, fontScale, green, fontThickness)
+					gocv.PutText(&frameToken.frame, "ReadFPS: "+strconv.FormatFloat(1.0/(float64(frameToken.readTS-frameToken.startTS)/1000.0), 'f', 1, 64), image.Point{textPadding, 95}, font, fontScale, green, fontThickness)
+					gocv.PutText(&frameToken.frame, "ProcFPS: "+strconv.FormatFloat(1.0/(float64(frameToken.processedTS-frameToken.readTS)/1000.0), 'f', 1, 64), image.Point{textPadding, 130}, font, fontScale, green, fontThickness)
 
 					// Average
 					gocv.PutText(&frameToken.frame, "   Avg Read: "+strconv.FormatFloat(readTotal/frameCount, 'f', 1, 64), image.Point{x2, 25}, font, fontScale, green, fontThickness)
 					gocv.PutText(&frameToken.frame, "Avg Process: "+strconv.FormatFloat(processTotal/frameCount, 'f', 1, 64), image.Point{x2, 60}, font, fontScale, green, fontThickness)
-					gocv.PutText(&frameToken.frame, "    Avg FPS: "+strconv.FormatFloat(1.0/((readTotal/frameCount)/1000.0), 'f', 1, 64), image.Point{x2, 95}, font, fontScale, green, fontThickness)
+					gocv.PutText(&frameToken.frame, "Avg ReadFPS: "+strconv.FormatFloat(1.0/((readTotal/frameCount)/1000.0), 'f', 1, 64), image.Point{x2, 95}, font, fontScale, green, fontThickness)
+					gocv.PutText(&frameToken.frame, "Avg ProcFPS: "+strconv.FormatFloat(1.0/((processTotal/frameCount)/1000.0), 'f', 1, 64), image.Point{x2, 130}, font, fontScale, green, fontThickness)
 				}
 
 				frameToken.overlayMutex.Lock()
