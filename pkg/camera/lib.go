@@ -39,7 +39,7 @@ import (
 )
 
 const (
-	xmlFile = "./res/docker/haarcascade_frontalface_default.xml"
+	cascadeFolder = "./res/data/haarcascades"
 
 	font          = gocv.FontHersheySimplex
 	fontScale     = 0.75
@@ -53,7 +53,99 @@ var (
 	red   = color.RGBA{255, 0, 0, 0}
 	green = color.RGBA{0, 255, 0, 0}
 	blue  = color.RGBA{0, 0, 255, 0}
+
+	cascadeFiles = []CascadeFile{
+		{
+			name:     "face",
+			filename: "haarcascade_frontalface_default.xml",
+			drawOptions: DrawOptions{
+				annotation: "Bacon Thief!",
+				color:      red,
+				thickness: 2,
+			},
+			detectParams:DetectParams{
+				scale:        1.2,
+				minNeighbors: 4,
+				flags:        0,
+				minScaleX:    0.1,
+				minScaleY:    0.1,
+				maxScaleX:    0.8,
+				maxScaleY:    0.8,
+			},
+		},
+		//{
+		//	name: "eye",
+		//	filename: "haarcascade_eye.xml",
+		//	drawOptions: DrawOptions{
+		//		color: blue,
+		//		thickness: 1,
+		//	},
+		//	detectParams:DetectParams{
+		//		scale:        1.2,
+		//		minNeighbors: 4,
+		//		flags:        0,
+		//		minScaleX:    0.04,
+		//		minScaleY:    0.04,
+		//		maxScaleX:    0.08,
+		//		maxScaleY:    0.08,
+		//	},
+		//},
+		{
+			name: "upper body",
+			filename: "haarcascade_upperbody.xml",
+			drawOptions: DrawOptions{
+				color: green,
+				thickness: 1,
+			},
+			detectParams:DetectParams{
+				scale:        1.3,
+				minNeighbors: 4,
+				flags:        0,
+				minScaleX:    0.05,
+				minScaleY:    0.1,
+				maxScaleX:    0.5,
+				maxScaleY:    1.0,
+			},
+		},
+	}
 )
+
+type DrawOptions struct {
+	annotation string
+	color      color.RGBA
+	thickness  int
+}
+
+type DetectParams struct {
+	scale        float64
+	minNeighbors int
+	flags        int
+	minScaleX    float64
+	minScaleY    float64
+	maxScaleX    float64
+	maxScaleY    float64
+}
+
+type CascadeFile struct {
+	name         string
+	filename     string
+	drawOptions  DrawOptions
+	detectParams DetectParams
+	classifier   *gocv.CascadeClassifier
+}
+
+type CascadeQueue struct {
+	cascadeFile CascadeFile
+	found       bool
+	buffer      chan *FrameToken
+}
+
+func (cascadeFile CascadeFile) CreateQueue(bufferSize int) *CascadeQueue {
+	return &CascadeQueue{
+		cascadeFile: cascadeFile,
+		buffer:      make(chan *FrameToken, bufferSize),
+	}
+}
 
 type FrameToken struct {
 	startTS      int64
@@ -66,8 +158,8 @@ type FrameToken struct {
 }
 
 type FrameOverlay struct {
-	rect image.Rectangle
-	text string
+	rect        image.Rectangle
+	drawOptions DrawOptions
 }
 
 func (recorder *Recorder) NewFrameToken() *FrameToken {
@@ -79,7 +171,6 @@ func (recorder *Recorder) NewFrameToken() *FrameToken {
 
 type Recorder struct {
 	videoDevice    string
-	foundFace      bool
 	outputFilename string
 	fps            float64
 	codec          string
@@ -89,16 +180,15 @@ type Recorder struct {
 	waitGroup      sync.WaitGroup
 	done           chan bool
 
-	webcam     *gocv.VideoCapture
-	classifier *gocv.CascadeClassifier
+	webcam        *gocv.VideoCapture
+	cascadeQueues []*CascadeQueue
+	writer        *gocv.VideoWriter
+	window        *gocv.Window
 	//net	       gocv.Net
-	writer *gocv.VideoWriter
-	window *gocv.Window
 
-	faceBuffer chan *FrameToken
-	//vinoBuffer  chan *FrameToken
 	writeBuffer chan *FrameToken
 	waitBuffer  chan *FrameToken
+	//vinoBuffer  chan *FrameToken
 }
 
 func NewRecorder(videoDevice string, outputFilename string) *Recorder {
@@ -112,10 +202,8 @@ func NewRecorder(videoDevice string, outputFilename string) *Recorder {
 		codec:          config.AppConfig.VideoOutputCodec,
 		window:         gocv.NewWindow(config.AppConfig.ServiceName + " - OpenVINO"),
 
-		faceBuffer: make(chan *FrameToken, 10),
-		//vinoBuffer:  make(chan *FrameToken, 10),
-		writeBuffer: make(chan *FrameToken, 10),
-		waitBuffer:  make(chan *FrameToken, 10),
+		writeBuffer: make(chan *FrameToken, 25),
+		waitBuffer:  make(chan *FrameToken, config.AppConfig.VideoOutputFps * config.AppConfig.RecordingDuration),
 		done:        make(chan bool),
 	}
 
@@ -167,10 +255,13 @@ func (recorder *Recorder) Open() error {
 	}
 
 	// load classifier to recognize faces
-	classifier := gocv.NewCascadeClassifier()
-	recorder.classifier = &classifier
-	if !recorder.classifier.Load(xmlFile) {
-		return fmt.Errorf("error reading cascade file: %v", xmlFile)
+	for _, cascadeFile := range cascadeFiles {
+		classifier := gocv.NewCascadeClassifier()
+		if !classifier.Load(cascadeFolder + "/" + cascadeFile.filename) {
+			logrus.Errorf("error reading cascade file: %v", cascadeFile.filename)
+		}
+		cascadeFile.classifier = &classifier
+		recorder.cascadeQueues = append(recorder.cascadeQueues, cascadeFile.CreateQueue(100))
 	}
 
 	//caffeModel := "/opt/intel/openvino/models/intel/face-detection-retail-0004/INT8/face-detection-retail-0004.bin"
@@ -193,15 +284,22 @@ func (recorder *Recorder) Open() error {
 }
 
 func (recorder *Recorder) Begin() time.Time {
-	go recorder.ProcessFaceQueue(recorder.done)
+	for _, cascadeQueue := range recorder.cascadeQueues {
+		go recorder.ProcessClassifierQueue(recorder.done, cascadeQueue)
+	}
+
 	//go recorder.ProcessOpenVINOQueue(recorder.done)
+
 	if recorder.outputFilename != "" {
 		go recorder.ProcessWriteQueue(recorder.done)
 	}
+
 	go recorder.ProcessWaitQueue(recorder.done)
+
 	if recorder.liveView {
 		recorder.window.ResizeWindow(recorder.width, recorder.height)
 	}
+
 	return time.Now()
 }
 
@@ -255,8 +353,10 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 
 				frameToken.overlayMutex.Lock()
 				for _, overlay := range frameToken.overlays {
-					gocv.Rectangle(&frameToken.frame, overlay.rect, red, fontThickness)
-					gocv.PutText(&frameToken.frame, overlay.text, image.Point{overlay.rect.Min.X, overlay.rect.Min.Y - 10}, font, 1, red, fontThickness)
+					//radius := (overlay.rect.Max.X - overlay.rect.Min.X) / 2
+					//gocv.Circle(&frameToken.frame, image.Point{overlay.rect.Max.X - radius, overlay.rect.Max.Y - radius}, radius, overlay.drawOptions.color, overlay.drawOptions.thickness)
+					gocv.Rectangle(&frameToken.frame, overlay.rect, overlay.drawOptions.color, overlay.drawOptions.thickness)
+					gocv.PutText(&frameToken.frame, overlay.drawOptions.annotation, image.Point{overlay.rect.Min.X, overlay.rect.Min.Y - 10}, font, 1, overlay.drawOptions.color, fontThickness)
 				}
 				frameToken.overlayMutex.Unlock()
 
@@ -306,45 +406,51 @@ func (recorder *Recorder) ProcessWriteQueue(done chan bool) error {
 	}
 }
 
-func (recorder *Recorder) ProcessFaceQueue(done chan bool) {
+func (recorder *Recorder) ProcessClassifierQueue(done chan bool, cascadeQueue *CascadeQueue) {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("recovered from panic: %+v", r)
 		}
 	}()
 
-	logrus.Debug("ProcessFaceQueue() goroutine started")
+	cascade := cascadeQueue.cascadeFile
+	params := cascade.detectParams
+
+	logrus.Debugf("ProcessClassifierQueue(classifier: %s) goroutine started", cascade.name)
 	for {
 		select {
 		case <-done:
-			logrus.Debug("ProcessFaceQueue() goroutine completed")
-			close(recorder.faceBuffer)
+			logrus.Debugf("ProcessClassifierQueue(classifier: %s) goroutine completed", cascade.name)
+			close(cascadeQueue.buffer)
 			return
 
-		case token := <-recorder.faceBuffer:
-			//if !recorder.foundFace {
-			rects := recorder.classifier.DetectMultiScaleWithParams(token.frame, 1.1, 6, 0,
-				image.Point{X: int(float64(recorder.width) * 0.1), Y: int(float64(recorder.height) * 0.1)}, image.Point{X: int(float64(recorder.width) * 0.8), Y: int(float64(recorder.height) * 0.8)})
+		case token := <-cascadeQueue.buffer:
+			var rects []image.Rectangle
+			if reflect.DeepEqual(params, DetectParams{}) {
+				rects = cascade.classifier.DetectMultiScale(token.frame)
+			} else {
+				rects = cascade.classifier.DetectMultiScaleWithParams(token.frame, params.scale, params.minNeighbors, params.flags,
+					image.Point{X: int(float64(recorder.width) * params.minScaleX), Y: int(float64(recorder.height) * params.minScaleY)},
+					image.Point{X: int(float64(recorder.width) * params.maxScaleX), Y: int(float64(recorder.height) * params.maxScaleY)})
+			}
 
 			if len(rects) > 0 {
-				logrus.Debugf("Detected %v face(s)", len(rects))
+				logrus.Debugf("Detected %v %s(s)", len(rects), cascade.name)
 				prefix := strings.TrimSuffix(recorder.outputFilename, config.AppConfig.VideoOutputExtension)
-				if !recorder.foundFace {
-					gocv.IMWrite(fmt.Sprintf("%s.face.jpg", prefix), token.frame)
+				if !cascadeQueue.found {
+					cascadeQueue.found = true
+					gocv.IMWrite(fmt.Sprintf("%s.%s.jpg", prefix, cascade.name), token.frame)
 					for i, rect := range rects {
-						gocv.IMWrite(fmt.Sprintf("%s.face.%d.jpg", prefix, i), token.frame.Region(rect))
+						gocv.IMWrite(fmt.Sprintf("%s.%s.%d.jpg", prefix, cascade.name, i), token.frame.Region(rect))
 					}
 				}
 
 				token.overlayMutex.Lock()
 				for _, rect := range rects {
-					token.overlays = append(token.overlays, FrameOverlay{rect, "Bacon Thief!"})
+					token.overlays = append(token.overlays, FrameOverlay{rect: rect, drawOptions: cascade.drawOptions})
 				}
 				token.overlayMutex.Unlock()
-
-				recorder.foundFace = true
 			}
-			//}
 			token.waitGroup.Done()
 		}
 	}
@@ -391,7 +497,9 @@ func (recorder *Recorder) Close() {
 
 	safeClose(recorder.webcam)
 	safeClose(recorder.writer)
-	safeClose(recorder.classifier)
+	for _, cascadeQueue := range recorder.cascadeQueues {
+		safeClose(cascadeQueue.cascadeFile.classifier)
+	}
 	//safeClose(&recorder.net)
 	safeClose(recorder.window)
 
@@ -481,10 +589,14 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) e
 			continue
 		}
 
-		// Add 2 (one for faceBuffer, another for writeBuffer)
-		token.waitGroup.Add(fontThickness)
-		recorder.faceBuffer <- token
+		// Add 1 for for writeBuffer and 1 PER classifierQueue
+		token.waitGroup.Add(1)
 		recorder.writeBuffer <- token
+
+		for _, cascadeQueue := range recorder.cascadeQueues {
+			token.waitGroup.Add(1)
+			cascadeQueue.buffer <- token
+		}
 
 		// Add 1 for waitBuffer
 		recorder.waitGroup.Add(1)
