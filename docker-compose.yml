@@ -40,6 +40,7 @@ services:
       usbCameraDeviceIndex: 0
 
       epcFilter: "*"
+#      epcFilter: "3035*72[CB][0-6EF]"
       skuFilter: "*"
 
     volumes:
