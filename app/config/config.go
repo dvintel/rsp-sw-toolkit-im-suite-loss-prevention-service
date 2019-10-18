@@ -31,19 +31,21 @@ import (
 
 type (
 	variables struct {
-		ServiceName, LoggingLevel, Port             string
-		TelemetryEndpoint, TelemetryDataStoreName   string
-		VideoUrlBase, CoreCommandUrl                string
-		VideoDevice                                 string
-		LiveView, ShowVideoDebugStats               bool
-		RecordingDuration                           int
-		VideoResolutionWidth, VideoResolutionHeight int
-		VideoOutputFps                              int
-		VideoOutputCodec, VideoOutputExtension      string
-		VideoCaptureFOURCC                          string
-		VideoCaptureBufferSize                      int
-		EPCFilter, SKUFilter                        string
-		EPCFilterRegex, SKUFilterRegex              *regexp.Regexp
+		ServiceName, LoggingLevel, Port               string
+		TelemetryEndpoint, TelemetryDataStoreName     string
+		VideoUrlBase, CoreCommandUrl                  string
+		VideoDevice                                   string
+		LiveView, FullscreenView, ShowVideoDebugStats bool
+		RecordingDuration                             int
+		VideoResolutionWidth, VideoResolutionHeight   int
+		VideoOutputFps                                int
+		VideoOutputCodec, VideoOutputExtension        string
+		VideoCaptureFOURCC                            string
+		VideoCaptureBufferSize                        int
+		EPCFilter, SKUFilter                          string
+		EPCFilterRegex, SKUFilterRegex                *regexp.Regexp
+		ImageProcessScale                             int
+		SaveCascadeDetectionsToDisk bool
 	}
 )
 
@@ -70,10 +72,13 @@ func InitConfig() error {
 	AppConfig.CoreCommandUrl = getOrDefaultString(config, "coreCommandUrl", "http://edgex-core-command:48082")
 
 	AppConfig.LiveView = getOrDefaultBool(config, "liveView", true)
+	AppConfig.FullscreenView = getOrDefaultBool(config, "fullscreenView", false)
 	AppConfig.ShowVideoDebugStats = getOrDefaultBool(config, "showVideoDebugStats", false)
+	AppConfig.SaveCascadeDetectionsToDisk = getOrDefaultBool(config, "saveCascadeDetectionsToDisk", true)
 	AppConfig.RecordingDuration = getOrDefaultInt(config, "recordingDuration", 15)
 	AppConfig.VideoResolutionWidth = getOrDefaultInt(config, "videoResolutionWidth", 1280)
 	AppConfig.VideoResolutionHeight = getOrDefaultInt(config, "videoResolutionHeight", 720)
+	AppConfig.ImageProcessScale = getOrDefaultInt(config, "imageProcessScale", 2)
 	AppConfig.VideoOutputFps = getOrDefaultInt(config, "videoOutputFps", 25)
 	AppConfig.VideoOutputCodec = getOrDefaultString(config, "videoOutputCodec", "avc1")
 	AppConfig.VideoOutputExtension = getOrDefaultString(config, "videoOutputExtension", ".mp4")

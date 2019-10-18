@@ -50,11 +50,11 @@ const (
 var (
 	cameraSemaphone = semaphore.NewWeighted(1)
 
-	red   = color.RGBA{255, 0, 0, 0}
-	green = color.RGBA{0, 255, 0, 0}
-	blue  = color.RGBA{0, 0, 255, 0}
+	red    = color.RGBA{255, 0, 0, 0}
+	green  = color.RGBA{0, 255, 0, 0}
+	blue   = color.RGBA{0, 0, 255, 0}
 	orange = color.RGBA{255, 255, 0, 0}
-	white = color.RGBA{255, 255, 255, 0}
+	white  = color.RGBA{255, 255, 255, 0}
 	purple = color.RGBA{255, 0, 255, 0}
 
 	cascadeFiles = []CascadeFile{
@@ -64,9 +64,9 @@ var (
 			drawOptions: DrawOptions{
 				annotation: "Bacon Thief!",
 				color:      red,
-				thickness: 2,
+				thickness:  2,
 			},
-			detectParams:DetectParams{
+			detectParams: DetectParams{
 				scale:        1.4,
 				minNeighbors: 4,
 				flags:        0,
@@ -112,14 +112,14 @@ var (
 		// 	},
 		// },
 		{
-			name: "upper body",
+			name:     "upper body",
 			filename: "haarcascade_upperbody.xml",
 			drawOptions: DrawOptions{
-				color: white,
-				thickness: 2,
+				color:      white,
+				thickness:  2,
 				annotation: "Employee",
 			},
-			detectParams:DetectParams{
+			detectParams: DetectParams{
 				scale:        1.5,
 				minNeighbors: 3,
 				flags:        0,
@@ -130,14 +130,14 @@ var (
 			},
 		},
 		{
-			name: "full body",
+			name:     "full body",
 			filename: "haarcascade_fullbody.xml",
 			drawOptions: DrawOptions{
-				color: orange,
-				thickness: 2,
+				color:      orange,
+				thickness:  2,
 				annotation: "Customer",
 			},
-			detectParams:DetectParams{
+			detectParams: DetectParams{
 				scale:        1.4,
 				minNeighbors: 2,
 				flags:        0,
@@ -192,6 +192,7 @@ type FrameToken struct {
 	readTS       int64
 	processedTS  int64
 	frame        gocv.Mat
+	procFrame    gocv.Mat
 	waitGroup    sync.WaitGroup
 	overlays     []FrameOverlay
 	overlayMutex sync.Mutex
@@ -204,8 +205,9 @@ type FrameOverlay struct {
 
 func (recorder *Recorder) NewFrameToken() *FrameToken {
 	return &FrameToken{
-		startTS: helper.UnixMilliNow(),
-		frame:   gocv.NewMat(),
+		startTS:   helper.UnixMilliNow(),
+		frame:     gocv.NewMat(),
+		procFrame: gocv.NewMat(),
 	}
 }
 
@@ -242,8 +244,8 @@ func NewRecorder(videoDevice string, outputFilename string) *Recorder {
 		codec:          config.AppConfig.VideoOutputCodec,
 		window:         gocv.NewWindow(config.AppConfig.ServiceName + " - OpenVINO"),
 
-		writeBuffer: make(chan *FrameToken, 25),
-		waitBuffer:  make(chan *FrameToken, config.AppConfig.VideoOutputFps * config.AppConfig.RecordingDuration),
+		writeBuffer: make(chan *FrameToken, 100),
+		waitBuffer:  make(chan *FrameToken, config.AppConfig.VideoOutputFps*config.AppConfig.RecordingDuration),
 		done:        make(chan bool),
 	}
 
@@ -299,7 +301,9 @@ func (recorder *Recorder) Open() error {
 		classifier := gocv.NewCascadeClassifier()
 		if !classifier.Load(cascadeFolder + "/" + cascadeFile.filename) {
 			logrus.Errorf("error reading cascade file: %v", cascadeFile.filename)
+			continue
 		}
+
 		cascadeFile.classifier = &classifier
 		recorder.cascadeQueues = append(recorder.cascadeQueues, cascadeFile.CreateQueue(100))
 	}
@@ -337,8 +341,12 @@ func (recorder *Recorder) Begin() time.Time {
 	go recorder.ProcessWaitQueue(recorder.done)
 
 	if recorder.liveView {
-		recorder.window.ResizeWindow(1920, 1080)
-		recorder.window.SetWindowProperty(gocv.WindowPropertyFullscreen, gocv.WindowFullscreen)
+		//recorder.window.ResizeWindow(1920, 1080)
+		recorder.window.ResizeWindow(recorder.width, recorder.height)
+
+		if config.AppConfig.FullscreenView {
+			recorder.window.SetWindowProperty(gocv.WindowPropertyFullscreen, gocv.WindowFullscreen)
+		}
 	}
 
 	return time.Now()
@@ -404,16 +412,19 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 				frameToken.overlayMutex.Unlock()
 
 				recorder.window.IMShow(frameToken.frame)
-				recorder.window.WaitKey(1)
-				//
-				//if recorder.window.GetWindowProperty(gocv.WindowPropertyVisible) < 1 {
-				//	logrus.Debugf("stopping video live view")
-				//	recorder.liveView = false
-				//	safeClose(recorder.window)
-				//}
+				key := recorder.window.WaitKey(1)
+
+				// ESC, Q, q
+				if key == 27 || key == 'q' || key == 'Q' {
+					logrus.Debugf("stopping video live view")
+					recorder.liveView = false
+					safeClose(recorder.window)
+					break
+				}
 			}
 
 			safeClose(&frameToken.frame)
+			safeClose(&frameToken.procFrame)
 			recorder.waitGroup.Done()
 		}
 	}
@@ -470,27 +481,39 @@ func (recorder *Recorder) ProcessClassifierQueue(done chan bool, cascadeQueue *C
 		case token := <-cascadeQueue.buffer:
 			var rects []image.Rectangle
 			if reflect.DeepEqual(params, DetectParams{}) {
-				rects = cascade.classifier.DetectMultiScale(token.frame)
+				rects = cascade.classifier.DetectMultiScale(token.procFrame)
 			} else {
-				rects = cascade.classifier.DetectMultiScaleWithParams(token.frame, params.scale, params.minNeighbors, params.flags,
+				rects = cascade.classifier.DetectMultiScaleWithParams(token.procFrame, params.scale, params.minNeighbors, params.flags,
 					image.Point{X: int(float64(recorder.width) * params.minScaleX), Y: int(float64(recorder.height) * params.minScaleY)},
 					image.Point{X: int(float64(recorder.width) * params.maxScaleX), Y: int(float64(recorder.height) * params.maxScaleY)})
 			}
 
 			if len(rects) > 0 {
 				logrus.Debugf("Detected %v %s(s)", len(rects), cascade.name)
-				prefix := strings.TrimSuffix(recorder.outputFilename, config.AppConfig.VideoOutputExtension)
-				if !cascadeQueue.found {
-					cascadeQueue.found = true
-					gocv.IMWrite(fmt.Sprintf("%s.%s.jpg", prefix, cascade.name), token.frame)
-					for i, rect := range rects {
-						gocv.IMWrite(fmt.Sprintf("%s.%s.%d.jpg", prefix, cascade.name, i), token.frame.Region(rect))
+				if config.AppConfig.SaveCascadeDetectionsToDisk {
+					prefix := strings.TrimSuffix(recorder.outputFilename, config.AppConfig.VideoOutputExtension)
+					if !cascadeQueue.found {
+						cascadeQueue.found = true
+						gocv.IMWrite(fmt.Sprintf("%s.%s.jpg", prefix, cascade.name), token.frame)
+						for i, rect := range rects {
+							gocv.IMWrite(fmt.Sprintf("%s.%s.%d.jpg", prefix, cascade.name, i), token.procFrame.Region(rect))
+						}
 					}
 				}
 
 				token.overlayMutex.Lock()
 				for _, rect := range rects {
-					token.overlays = append(token.overlays, FrameOverlay{rect: rect, drawOptions: cascade.drawOptions})
+					trect := image.Rectangle{
+						Min: image.Point{
+							X: rect.Min.X * config.AppConfig.ImageProcessScale,
+							Y: rect.Min.Y * config.AppConfig.ImageProcessScale,
+						},
+						Max: image.Point{
+							X: rect.Max.X * config.AppConfig.ImageProcessScale,
+							Y: rect.Max.Y * config.AppConfig.ImageProcessScale,
+						},
+					}
+					token.overlays = append(token.overlays, FrameOverlay{rect: trect, drawOptions: cascade.drawOptions})
 				}
 				token.overlayMutex.Unlock()
 			}
@@ -635,6 +658,9 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) e
 		// Add 1 for for writeBuffer and 1 PER classifierQueue
 		token.waitGroup.Add(1)
 		recorder.writeBuffer <- token
+
+		// Resize smaller for use with the cascade classifiers
+		gocv.Resize(token.frame, &token.procFrame, image.Point{}, 1.0 / float64(config.AppConfig.ImageProcessScale), 1.0 / float64(config.AppConfig.ImageProcessScale), gocv.InterpolationLinear)
 
 		for _, cascadeQueue := range recorder.cascadeQueues {
 			token.waitGroup.Add(1)

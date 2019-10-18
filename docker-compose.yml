@@ -27,11 +27,14 @@ services:
       loggingLevel: "debug"
       videoUrlBase: "http://localhost:9091/material-dashboard/view.html?v="
       liveView: "true"
+      fullscreenView: "false"
       showVideoDebugStats: "true"
+      saveCascadeDetectionsToDisk: "true"
       videoCaptureFOURCC: "MJPG"
-      recordingDuration: 150
-      videoResolutionWidth: 640
-      videoResolutionHeight: 480
+      recordingDuration: 15
+      videoResolutionWidth: 1280
+      videoResolutionHeight: 720
+      imageProcessScale: 2
       videoOutputFps: 25
       videoOutputCodec: "avc1"
       videoOutputExtension: ".mp4"
