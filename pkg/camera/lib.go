@@ -34,7 +34,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -155,111 +154,6 @@ var (
 	}
 )
 
-type DrawOptions struct {
-	annotation     string
-	color          color.RGBA
-	thickness      int
-	renderAsCircle bool
-}
-
-type DetectParams struct {
-	scale        float64
-	minNeighbors int
-	flags        int
-	minScaleX    float64
-	minScaleY    float64
-	maxScaleX    float64
-	maxScaleY    float64
-}
-
-type CascadeFile struct {
-	name         string
-	filename     string
-	drawOptions  DrawOptions
-	detectParams DetectParams
-	classifier   *gocv.CascadeClassifier
-}
-
-type CascadeQueue struct {
-	cascadeFile CascadeFile
-	found       bool
-	buffer      chan *FrameToken
-}
-
-func (cascadeFile CascadeFile) CreateQueue(bufferSize int) *CascadeQueue {
-	return &CascadeQueue{
-		cascadeFile: cascadeFile,
-		buffer:      make(chan *FrameToken, bufferSize),
-	}
-}
-
-type FrameToken struct {
-	startTS      int64
-	readTS       int64
-	processedTS  int64
-	frame        gocv.Mat
-	procFrame    gocv.Mat
-	waitGroup    sync.WaitGroup
-	overlays     []FrameOverlay
-	overlayMutex sync.Mutex
-}
-
-type FrameOverlay struct {
-	rect        image.Rectangle
-	drawOptions DrawOptions
-}
-
-func (recorder *Recorder) NewFrameToken() *FrameToken {
-	return &FrameToken{
-		startTS:   helper.UnixMilliNow(),
-		frame:     gocv.NewMat(),
-		procFrame: gocv.NewMat(),
-	}
-}
-
-type Recorder struct {
-	videoDevice    string
-	outputFilename string
-	fps            float64
-	codec          string
-	width          int
-	height         int
-	liveView       bool
-	waitGroup      sync.WaitGroup
-	done           chan bool
-
-	webcam        *gocv.VideoCapture
-	cascadeQueues []*CascadeQueue
-	writer        *gocv.VideoWriter
-	window        *gocv.Window
-	//net	       gocv.Net
-
-	writeBuffer chan *FrameToken
-	waitBuffer  chan *FrameToken
-	//vinoBuffer  chan *FrameToken
-	closeBuffer chan *FrameToken
-}
-
-func NewRecorder(videoDevice string, outputFilename string) *Recorder {
-	recorder := &Recorder{
-		videoDevice:    videoDevice,
-		outputFilename: outputFilename,
-		width:          config.AppConfig.VideoResolutionWidth,
-		height:         config.AppConfig.VideoResolutionHeight,
-		liveView:       config.AppConfig.LiveView,
-		fps:            float64(config.AppConfig.VideoOutputFps),
-		codec:          config.AppConfig.VideoOutputCodec,
-		window:         gocv.NewWindow(config.AppConfig.ServiceName + " - OpenVINO"),
-
-		writeBuffer: make(chan *FrameToken, 25),
-		waitBuffer:  make(chan *FrameToken, config.AppConfig.VideoOutputFps*config.AppConfig.RecordingDuration),
-		closeBuffer: make(chan *FrameToken, config.AppConfig.VideoOutputFps*config.AppConfig.RecordingDuration),
-		done:        make(chan bool),
-	}
-
-	return recorder
-}
-
 // codecToFloat64 returns a float64 representation of FourCC bytes for use with `gocv.VideoCaptureFOURCC`
 func codecToFloat64(codec string) float64 {
 	if len(codec) != 4 {
@@ -376,10 +270,12 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 	}()
 
 	// for debug stats
-	var frameCount, processTotal, readTotal float64
+	var read, process DebugStats
 	// pre-compute the x location of the avg stats
-	x2 := gocv.GetTextSize("Avg Process: 99.9", font, fontScale, fontThickness).X + textPadding
-
+	x2 := gocv.GetTextSize("Avg Process: 99.9", font, fontScale, fontThickness).X
+	x3 := gocv.GetTextSize("Min Process: 99", font, fontScale, fontThickness).X + x2 + 60
+	yPadding := 35
+	yStart := 0
 	logrus.Debug("ProcessWaitQueue() goroutine started")
 	for {
 		select {
@@ -394,21 +290,39 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 
 			if recorder.liveView {
 				if config.AppConfig.ShowVideoDebugStats {
-					frameCount++
-					processTotal += float64(frameToken.processedTS - frameToken.readTS)
-					readTotal += float64(frameToken.readTS - frameToken.startTS)
+					read.AddValue(float64(frameToken.readTS - frameToken.startTS))
+					process.AddValue(float64(frameToken.processedTS - frameToken.readTS))
 
 					// Instant
-					gocv.PutText(&frameToken.frame, "   Read: "+strconv.FormatInt(frameToken.readTS-frameToken.startTS, 10), image.Point{textPadding, 25}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "Process: "+strconv.FormatInt(frameToken.processedTS-frameToken.readTS, 10), image.Point{textPadding, 60}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "ReadFPS: "+strconv.FormatFloat(1.0/(float64(frameToken.readTS-frameToken.startTS)/1000.0), 'f', 1, 64), image.Point{textPadding, 95}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "ProcFPS: "+strconv.FormatFloat(1.0/(float64(frameToken.processedTS-frameToken.readTS)/1000.0), 'f', 1, 64), image.Point{textPadding, 130}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "   Read: "+strconv.FormatInt(int64(read.current), 10),
+						image.Point{textPadding, yStart + (yPadding * 1)}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "Process: "+strconv.FormatInt(int64(process.current), 10),
+						image.Point{textPadding, yStart + (yPadding * 2)}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "ReadFPS: "+strconv.FormatFloat(read.FPS(), 'f', 1, 64),
+						image.Point{textPadding, yStart + (yPadding * 3)}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "ProcFPS: "+strconv.FormatFloat(process.FPS(), 'f', 1, 64),
+						image.Point{textPadding, yStart + (yPadding * 4)}, font, fontScale, debugStatsColor, fontThickness)
+
+					// Min / Max
+					gocv.PutText(&frameToken.frame, "   Min Read: "+strconv.FormatInt(int64(read.min), 10),
+						image.Point{x2, yStart + (yPadding * 1)}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "   Max Read: "+strconv.FormatInt(int64(read.max), 10),
+						image.Point{x2, yStart + (yPadding * 2)}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "Min Process: "+strconv.FormatInt(int64(process.min), 10),
+						image.Point{x2, yStart + (yPadding * 3)}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "Max Process: "+strconv.FormatInt(int64(process.max), 10),
+						image.Point{x2, yStart + (yPadding * 4)}, font, fontScale, debugStatsColor, fontThickness)
 
 					// Average
-					gocv.PutText(&frameToken.frame, "   Avg Read: "+strconv.FormatFloat(readTotal/frameCount, 'f', 1, 64), image.Point{x2, 25}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "Avg Process: "+strconv.FormatFloat(processTotal/frameCount, 'f', 1, 64), image.Point{x2, 60}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "Avg ReadFPS: "+strconv.FormatFloat(1.0/((readTotal/frameCount)/1000.0), 'f', 1, 64), image.Point{x2, 95}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "Avg ProcFPS: "+strconv.FormatFloat(1.0/((processTotal/frameCount)/1000.0), 'f', 1, 64), image.Point{x2, 130}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "   Avg Read: "+strconv.FormatFloat(read.Average(), 'f', 1, 64),
+						image.Point{x3, yStart + (yPadding * 1)}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "Avg Process: "+strconv.FormatFloat(process.Average(), 'f', 1, 64),
+						image.Point{x3, yStart + (yPadding * 2)}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "Avg ReadFPS: "+strconv.FormatFloat(read.AverageFPS(), 'f', 1, 64),
+						image.Point{x3, yStart + (yPadding * 3)}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "Avg ProcFPS: "+strconv.FormatFloat(process.AverageFPS(), 'f', 1, 64),
+						image.Point{x3, yStart + (yPadding * 4)}, font, fontScale, debugStatsColor, fontThickness)
+
 				}
 
 				frameToken.overlayMutex.Lock()
