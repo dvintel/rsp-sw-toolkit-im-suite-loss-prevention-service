@@ -237,6 +237,7 @@ type Recorder struct {
 	writeBuffer chan *FrameToken
 	waitBuffer  chan *FrameToken
 	//vinoBuffer  chan *FrameToken
+	closeBuffer chan *FrameToken
 }
 
 func NewRecorder(videoDevice string, outputFilename string) *Recorder {
@@ -252,6 +253,7 @@ func NewRecorder(videoDevice string, outputFilename string) *Recorder {
 
 		writeBuffer: make(chan *FrameToken, 25),
 		waitBuffer:  make(chan *FrameToken, config.AppConfig.VideoOutputFps*config.AppConfig.RecordingDuration),
+		closeBuffer: make(chan *FrameToken, config.AppConfig.VideoOutputFps*config.AppConfig.RecordingDuration),
 		done:        make(chan bool),
 	}
 
@@ -345,6 +347,7 @@ func (recorder *Recorder) Begin() time.Time {
 	}
 
 	go recorder.ProcessWaitQueue(recorder.done)
+	go recorder.ProcessCloseQueue(recorder.done)
 
 	if recorder.liveView {
 		//recorder.window.ResizeWindow(1920, 1080)
@@ -433,8 +436,9 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 			}
 
 			// todo: use a buffered channel instead of separate go routines
-			go safeClose(&frameToken.frame)
-			go safeClose(&frameToken.procFrame)
+			recorder.waitGroup.Add(1)
+			recorder.closeBuffer <- frameToken
+
 			recorder.waitGroup.Done()
 		}
 	}
@@ -471,12 +475,6 @@ func (recorder *Recorder) ProcessWriteQueue(done chan bool) error {
 }
 
 func (recorder *Recorder) ProcessClassifierQueue(done chan bool, cascadeQueue *CascadeQueue) {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Errorf("recovered from panic: %+v", r)
-		}
-	}()
-
 	cascade := cascadeQueue.cascadeFile
 	params := cascade.detectParams
 
@@ -558,6 +556,28 @@ func (recorder *Recorder) ProcessClassifierQueue(done chan bool, cascadeQueue *C
 //	}
 //}
 
+func (recorder *Recorder) ProcessCloseQueue(done chan bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Errorf("recovered from panic: %+v", r)
+		}
+	}()
+
+	logrus.Debug("ProcessCloseQueue() goroutine started")
+	for {
+		select {
+		case <-done:
+			logrus.Debug("ProcessCloseQueue() goroutine completed")
+			close(recorder.closeBuffer)
+
+		case token := <-recorder.closeBuffer:
+			go safeClose(&token.frame)
+			go safeClose(&token.procFrame)
+			recorder.waitGroup.Done()
+		}
+	}
+}
+
 func (recorder *Recorder) Close() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -577,7 +597,9 @@ func (recorder *Recorder) Close() {
 		safeClose(cascadeQueue.cascadeFile.classifier)
 	}
 	//safeClose(&recorder.net)
-	safeClose(recorder.window)
+	if recorder.liveView {
+		safeClose(recorder.window)
+	}
 
 	logrus.Debug("Close() completed")
 }
@@ -621,6 +643,8 @@ func SanityCheck() error {
 		return err
 	}
 	recorder.Begin()
+	// set the writer to nil to prevent calling close on it, as we do not open it
+	recorder.writer = nil
 	recorder.Close()
 
 	return nil
