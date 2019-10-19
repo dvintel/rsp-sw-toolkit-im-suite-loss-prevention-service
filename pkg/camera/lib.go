@@ -57,6 +57,8 @@ var (
 	white  = color.RGBA{255, 255, 255, 0}
 	purple = color.RGBA{255, 0, 255, 0}
 
+	debugStatsColor = white
+
 	cascadeFiles = []CascadeFile{
 		{
 			name:     "face",
@@ -76,41 +78,44 @@ var (
 				maxScaleY:    0.8,
 			},
 		},
-		// {
-		// 	name:     "profile face",
-		// 	filename: "haarcascade_profileface.xml",
-		// 	drawOptions: DrawOptions{
-		// 		annotation: "Employee",
-		// 		color:      blue,
-		// 		thickness: 2,
-		// 	},
-		// 	detectParams:DetectParams{
-		// 		scale:        1.4,
-		// 		minNeighbors: 4,
-		// 		flags:        0,
-		// 		minScaleX:    0.1,
-		// 		minScaleY:    0.1,
-		// 		maxScaleX:    0.2,
-		// 		maxScaleY:    0.2,
-		// 	},
-		// },
-		// {
-		// 	name: "eye",
-		// 	filename: "haarcascade_eye.xml",
-		// 	drawOptions: DrawOptions{
-		// 		color: blue,
-		// 		thickness: 1,
-		// 	},
-		// 	detectParams:DetectParams{
-		// 		scale:        1.5,
-		// 		minNeighbors: 5,
-		// 		flags:        0,
-		// 		minScaleX:    0.01,
-		// 		minScaleY:    0.01,
-		// 		maxScaleX:    0.1,
-		// 		maxScaleY:    0.1,
-		// 	},
-		// },
+
+		{
+			name:     "profile face",
+			filename: "haarcascade_profileface.xml",
+			drawOptions: DrawOptions{
+				annotation: "Employee",
+				color:      blue,
+				thickness:  2,
+			},
+			detectParams: DetectParams{
+				scale:        1.4,
+				minNeighbors: 4,
+				flags:        0,
+				minScaleX:    0.1,
+				minScaleY:    0.1,
+				maxScaleX:    0.8,
+				maxScaleY:    0.8,
+			},
+		},
+		{
+			name:     "eye",
+			filename: "haarcascade_eye.xml",
+			drawOptions: DrawOptions{
+				color:          blue,
+				thickness:      1,
+				renderAsCircle: true,
+			},
+			detectParams: DetectParams{
+				scale:        1.5,
+				minNeighbors: 5,
+				flags:        0,
+				minScaleX:    0.01,
+				minScaleY:    0.01,
+				maxScaleX:    0.1,
+				maxScaleY:    0.1,
+			},
+		},
+
 		{
 			name:     "upper body",
 			filename: "haarcascade_upperbody.xml",
@@ -135,7 +140,7 @@ var (
 			drawOptions: DrawOptions{
 				color:      orange,
 				thickness:  2,
-				annotation: "Customer",
+				annotation: "Suspicious Person",
 			},
 			detectParams: DetectParams{
 				scale:        1.4,
@@ -151,9 +156,10 @@ var (
 )
 
 type DrawOptions struct {
-	annotation string
-	color      color.RGBA
-	thickness  int
+	annotation     string
+	color          color.RGBA
+	thickness      int
+	renderAsCircle bool
 }
 
 type DetectParams struct {
@@ -244,7 +250,7 @@ func NewRecorder(videoDevice string, outputFilename string) *Recorder {
 		codec:          config.AppConfig.VideoOutputCodec,
 		window:         gocv.NewWindow(config.AppConfig.ServiceName + " - OpenVINO"),
 
-		writeBuffer: make(chan *FrameToken, 100),
+		writeBuffer: make(chan *FrameToken, 25),
 		waitBuffer:  make(chan *FrameToken, config.AppConfig.VideoOutputFps*config.AppConfig.RecordingDuration),
 		done:        make(chan bool),
 	}
@@ -390,23 +396,26 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 					readTotal += float64(frameToken.readTS - frameToken.startTS)
 
 					// Instant
-					gocv.PutText(&frameToken.frame, "   Read: "+strconv.FormatInt(frameToken.readTS-frameToken.startTS, 10), image.Point{textPadding, 25}, font, fontScale, green, fontThickness)
-					gocv.PutText(&frameToken.frame, "Process: "+strconv.FormatInt(frameToken.processedTS-frameToken.readTS, 10), image.Point{textPadding, 60}, font, fontScale, green, fontThickness)
-					gocv.PutText(&frameToken.frame, "ReadFPS: "+strconv.FormatFloat(1.0/(float64(frameToken.readTS-frameToken.startTS)/1000.0), 'f', 1, 64), image.Point{textPadding, 95}, font, fontScale, green, fontThickness)
-					gocv.PutText(&frameToken.frame, "ProcFPS: "+strconv.FormatFloat(1.0/(float64(frameToken.processedTS-frameToken.readTS)/1000.0), 'f', 1, 64), image.Point{textPadding, 130}, font, fontScale, green, fontThickness)
+					gocv.PutText(&frameToken.frame, "   Read: "+strconv.FormatInt(frameToken.readTS-frameToken.startTS, 10), image.Point{textPadding, 25}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "Process: "+strconv.FormatInt(frameToken.processedTS-frameToken.readTS, 10), image.Point{textPadding, 60}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "ReadFPS: "+strconv.FormatFloat(1.0/(float64(frameToken.readTS-frameToken.startTS)/1000.0), 'f', 1, 64), image.Point{textPadding, 95}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "ProcFPS: "+strconv.FormatFloat(1.0/(float64(frameToken.processedTS-frameToken.readTS)/1000.0), 'f', 1, 64), image.Point{textPadding, 130}, font, fontScale, debugStatsColor, fontThickness)
 
 					// Average
-					gocv.PutText(&frameToken.frame, "   Avg Read: "+strconv.FormatFloat(readTotal/frameCount, 'f', 1, 64), image.Point{x2, 25}, font, fontScale, green, fontThickness)
-					gocv.PutText(&frameToken.frame, "Avg Process: "+strconv.FormatFloat(processTotal/frameCount, 'f', 1, 64), image.Point{x2, 60}, font, fontScale, green, fontThickness)
-					gocv.PutText(&frameToken.frame, "Avg ReadFPS: "+strconv.FormatFloat(1.0/((readTotal/frameCount)/1000.0), 'f', 1, 64), image.Point{x2, 95}, font, fontScale, green, fontThickness)
-					gocv.PutText(&frameToken.frame, "Avg ProcFPS: "+strconv.FormatFloat(1.0/((processTotal/frameCount)/1000.0), 'f', 1, 64), image.Point{x2, 130}, font, fontScale, green, fontThickness)
+					gocv.PutText(&frameToken.frame, "   Avg Read: "+strconv.FormatFloat(readTotal/frameCount, 'f', 1, 64), image.Point{x2, 25}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "Avg Process: "+strconv.FormatFloat(processTotal/frameCount, 'f', 1, 64), image.Point{x2, 60}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "Avg ReadFPS: "+strconv.FormatFloat(1.0/((readTotal/frameCount)/1000.0), 'f', 1, 64), image.Point{x2, 95}, font, fontScale, debugStatsColor, fontThickness)
+					gocv.PutText(&frameToken.frame, "Avg ProcFPS: "+strconv.FormatFloat(1.0/((processTotal/frameCount)/1000.0), 'f', 1, 64), image.Point{x2, 130}, font, fontScale, debugStatsColor, fontThickness)
 				}
 
 				frameToken.overlayMutex.Lock()
 				for _, overlay := range frameToken.overlays {
-					//radius := (overlay.rect.Max.X - overlay.rect.Min.X) / 2
-					//gocv.Circle(&frameToken.frame, image.Point{overlay.rect.Max.X - radius, overlay.rect.Max.Y - radius}, radius, overlay.drawOptions.color, overlay.drawOptions.thickness)
-					gocv.Rectangle(&frameToken.frame, overlay.rect, overlay.drawOptions.color, overlay.drawOptions.thickness)
+					if overlay.drawOptions.renderAsCircle {
+						radius := (overlay.rect.Max.X - overlay.rect.Min.X) / 2
+						gocv.Circle(&frameToken.frame, image.Point{overlay.rect.Max.X - radius, overlay.rect.Max.Y - radius}, radius, overlay.drawOptions.color, overlay.drawOptions.thickness)
+					} else {
+						gocv.Rectangle(&frameToken.frame, overlay.rect, overlay.drawOptions.color, overlay.drawOptions.thickness)
+					}
 					gocv.PutText(&frameToken.frame, overlay.drawOptions.annotation, image.Point{overlay.rect.Min.X, overlay.rect.Min.Y - 10}, font, 1, overlay.drawOptions.color, fontThickness)
 				}
 				frameToken.overlayMutex.Unlock()
@@ -423,8 +432,9 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 				}
 			}
 
-			safeClose(&frameToken.frame)
-			safeClose(&frameToken.procFrame)
+			// todo: use a buffered channel instead of separate go routines
+			go safeClose(&frameToken.frame)
+			go safeClose(&frameToken.procFrame)
 			recorder.waitGroup.Done()
 		}
 	}
@@ -660,7 +670,7 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) e
 		recorder.writeBuffer <- token
 
 		// Resize smaller for use with the cascade classifiers
-		gocv.Resize(token.frame, &token.procFrame, image.Point{}, 1.0 / float64(config.AppConfig.ImageProcessScale), 1.0 / float64(config.AppConfig.ImageProcessScale), gocv.InterpolationLinear)
+		gocv.Resize(token.frame, &token.procFrame, image.Point{}, 1.0/float64(config.AppConfig.ImageProcessScale), 1.0/float64(config.AppConfig.ImageProcessScale), gocv.InterpolationLinear)
 
 		for _, cascadeQueue := range recorder.cascadeQueues {
 			token.waitGroup.Add(1)

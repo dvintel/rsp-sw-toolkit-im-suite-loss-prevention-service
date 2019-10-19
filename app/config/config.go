@@ -45,7 +45,7 @@ type (
 		EPCFilter, SKUFilter                          string
 		EPCFilterRegex, SKUFilterRegex                *regexp.Regexp
 		ImageProcessScale                             int
-		SaveCascadeDetectionsToDisk bool
+		SaveCascadeDetectionsToDisk                   bool
 	}
 )
 

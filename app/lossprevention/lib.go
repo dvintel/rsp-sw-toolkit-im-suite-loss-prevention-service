@@ -30,7 +30,7 @@ import (
 
 const (
 	moved            = "moved"
-	videoFilePattern = "/recordings/recording_%s_%v%s"
+	videoFilePattern = "/recordings/%v_%s_%s%s"
 )
 
 func HandleDataPayload(payload *DataPayload) error {
@@ -70,15 +70,15 @@ func HandleDataPayload(payload *DataPayload) error {
 
 		logrus.Debugf("triggering on exiting tag: epc: %s (sku: %s)", tag.Epc, tag.ProductID)
 		// return so we do not keep checking
-		return triggerRecord(tag.ProductID)
+		return triggerRecord(&tag)
 	}
 
 	return nil
 }
 
-func triggerRecord(productId string) error {
+func triggerRecord(tag *Tag) error {
 
-	filename := fmt.Sprintf(videoFilePattern, productId, helper.UnixMilliNow(), config.AppConfig.VideoOutputExtension)
+	filename := fmt.Sprintf(videoFilePattern, helper.UnixMilliNow(), tag.ProductID, tag.Epc, config.AppConfig.VideoOutputExtension)
 	logrus.Debugf("recording filename: %s", filename)
 	go camera.RecordVideoToDisk(config.AppConfig.VideoDevice, config.AppConfig.RecordingDuration, filename)
 
