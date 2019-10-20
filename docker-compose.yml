@@ -21,8 +21,11 @@ services:
     restart: always
     security_opt:
       - apparmor=unconfined
+    ports:
+      - "9092:8080"
     environment:
       serviceName: "Loss Prevention Example App"
+      port: "8080"
       DISPLAY: unix:0
       loggingLevel: "debug"
       videoUrlBase: "http://localhost:9091/material-dashboard/view.html?v="

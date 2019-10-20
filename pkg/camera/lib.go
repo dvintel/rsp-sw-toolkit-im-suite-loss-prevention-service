@@ -412,35 +412,40 @@ func (recorder *Recorder) ProcessClassifierQueue(done chan bool, cascadeQueue *C
 
 			if len(rects) > 0 {
 				logrus.Debugf("Detected %v %s(s)", len(rects), cascade.name)
+
 				if config.AppConfig.SaveCascadeDetectionsToDisk {
 					prefix := strings.TrimSuffix(recorder.outputFilename, config.AppConfig.VideoOutputExtension)
-					if !cascadeQueue.found {
-						cascadeQueue.found = true
-						gocv.IMWrite(fmt.Sprintf("%s.%s.jpg", prefix, cascade.name), token.frame)
+					if cascadeQueue.found < len(rects) {
+						cascadeQueue.found = len(rects)
 						for i, rect := range rects {
-							gocv.IMWrite(fmt.Sprintf("%s.%s.%d.jpg", prefix, cascade.name, i), token.procFrame.Region(rect))
+							gocv.IMWrite(fmt.Sprintf("%s.%s.%d.jpg", prefix, cascade.name, i), token.frame.Region(transformProcessRect(rect)))
 						}
 					}
 				}
 
 				token.overlayMutex.Lock()
 				for _, rect := range rects {
-					trect := image.Rectangle{
-						Min: image.Point{
-							X: rect.Min.X * config.AppConfig.ImageProcessScale,
-							Y: rect.Min.Y * config.AppConfig.ImageProcessScale,
-						},
-						Max: image.Point{
-							X: rect.Max.X * config.AppConfig.ImageProcessScale,
-							Y: rect.Max.Y * config.AppConfig.ImageProcessScale,
-						},
-					}
-					token.overlays = append(token.overlays, FrameOverlay{rect: trect, drawOptions: cascade.drawOptions})
+					token.overlays = append(token.overlays, FrameOverlay{rect: transformProcessRect(rect), drawOptions: cascade.drawOptions})
 				}
 				token.overlayMutex.Unlock()
 			}
 			token.waitGroup.Done()
 		}
+	}
+}
+
+// transformProcessRect takes a smaller scaled rectangle produced by a processing function and transforms it
+// into a rectangle relative to the full original image size
+func transformProcessRect(rect image.Rectangle) image.Rectangle {
+	return image.Rectangle{
+		Min: image.Point{
+			X: rect.Min.X * config.AppConfig.ImageProcessScale,
+			Y: rect.Min.Y * config.AppConfig.ImageProcessScale,
+		},
+		Max: image.Point{
+			X: rect.Max.X * config.AppConfig.ImageProcessScale,
+			Y: rect.Max.Y * config.AppConfig.ImageProcessScale,
+		},
 	}
 }
 

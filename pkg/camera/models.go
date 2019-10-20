@@ -88,7 +88,7 @@ type CascadeFile struct {
 
 type CascadeQueue struct {
 	cascadeFile CascadeFile
-	found       bool
+	found       int
 	buffer      chan *FrameToken
 }
 

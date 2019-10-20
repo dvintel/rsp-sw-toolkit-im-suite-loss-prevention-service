@@ -24,6 +24,7 @@ import (
 	"github.com/edgexfoundry/app-functions-sdk-go/pkg/transforms"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/lossprevention"
+	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/webserver"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/camera"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/sensor"
@@ -84,9 +85,7 @@ func main() {
 		logrus.Errorf("error running sanity check: %v", err)
 	}
 
-	for {
-		time.Sleep(1 * time.Second)
-	}
+	webserver.StartWebServer(config.AppConfig.Port)
 
 	log.WithField("Method", "main").Info("Completed.")
 }
