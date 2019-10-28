@@ -20,7 +20,9 @@ package webserver
 
 import (
 	"context"
+	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/web"
+	"io/ioutil"
 	"net/http"
 )
 
@@ -34,5 +36,23 @@ type Handler struct {
 //nolint:unparam
 func (handler *Handler) Index(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
 	web.Respond(ctx, writer, handler.ServiceName, http.StatusOK)
+	return nil
+}
+
+// ListRecordings will return a json array of recording filenames
+//nolint:unparam
+func (handler *Handler) ListRecordings(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
+	files, err := ioutil.ReadDir("/recordings")
+	if err != nil {
+		logrus.Error(err)
+		web.Respond(ctx, writer, "", http.StatusInternalServerError)
+	}
+
+	resp := make([]string, len(files))
+	for i, file := range files {
+		resp[i] = file.Name()
+	}
+
+	web.Respond(ctx, writer, resp, http.StatusOK)
 	return nil
 }

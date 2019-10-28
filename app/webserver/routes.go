@@ -66,6 +66,12 @@ func NewRouter() *mux.Router {
 			"/",
 			handler.Index,
 		},
+		{
+			"ListRecordings",
+			"GET",
+			"/recordings",
+			handler.ListRecordings,
+		},
 	}
 
 	router := mux.NewRouter().StrictSlash(true)
