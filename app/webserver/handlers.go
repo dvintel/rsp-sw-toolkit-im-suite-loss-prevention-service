@@ -42,6 +42,7 @@ func (handler *Handler) Index(ctx context.Context, writer http.ResponseWriter, r
 // ListRecordings will return a json array of recording filenames
 //nolint:unparam
 func (handler *Handler) ListRecordings(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
+	// todo: limit recording history, or use pagination
 	files, err := ioutil.ReadDir("/recordings")
 	if err != nil {
 		logrus.Error(err)
