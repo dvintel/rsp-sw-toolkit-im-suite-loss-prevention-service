@@ -51,14 +51,23 @@ func (stats *DebugStats) AddValue(val float64) {
 }
 
 func (stats *DebugStats) Average() float64 {
+	if stats.count == 0 {
+		return 0
+	}
 	return stats.total / stats.count
 }
 
 func (stats *DebugStats) AverageFPS() float64 {
+	if stats.Average() == 0 {
+		return 0
+	}
 	return 1.0 / (stats.Average() / 1000.0)
 }
 
 func (stats *DebugStats) FPS() float64 {
+	if stats.current == 0 {
+		return 0
+	}
 	return 1.0 / (stats.current / 1000.0)
 }
 

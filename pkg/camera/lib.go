@@ -80,25 +80,24 @@ var (
 				maxScaleY:    0.8,
 			},
 		},
-		//
-		//{
-		//	name:     "profile_face",
-		//	filename: "haarcascade_profileface.xml",
-		//	drawOptions: DrawOptions{
-		//		annotation: "Employee",
-		//		color:      blue,
-		//		thickness:  2,
-		//	},
-		//	detectParams: DetectParams{
-		//		scale:        1.4,
-		//		minNeighbors: 4,
-		//		flags:        0,
-		//		minScaleX:    0.1,
-		//		minScaleY:    0.1,
-		//		maxScaleX:    0.8,
-		//		maxScaleY:    0.8,
-		//	},
-		//},
+		{
+			name:     "profile_face",
+			filename: "haarcascade_profileface.xml",
+			drawOptions: DrawOptions{
+				annotation: "Employee",
+				color:      blue,
+				thickness:  2,
+			},
+			detectParams: DetectParams{
+				scale:        1.4,
+				minNeighbors: 4,
+				flags:        0,
+				minScaleX:    0.1,
+				minScaleY:    0.1,
+				maxScaleX:    0.8,
+				maxScaleY:    0.8,
+			},
+		},
 		//{
 		//	name:     "eye",
 		//	filename: "haarcascade_eye.xml",
@@ -117,7 +116,6 @@ var (
 		//		maxScaleY:    0.1,
 		//	},
 		//},
-
 		{
 			name:     "upper_body",
 			filename: "haarcascade_upperbody.xml",
@@ -223,8 +221,8 @@ func (recorder *Recorder) Open() error {
 	//recorder.net.SetPreferableBackend(gocv.NetBackendType(gocv.NetBackendOpenVINO))
 	//recorder.net.SetPreferableTarget(gocv.NetTargetType(gocv.NetTargetCPU))
 
-	// skip the first frame (sometimes it takes longer to read, which affects the smoothness of the video)
-	recorder.webcam.Grab(1)
+	// skip the first few frames (sometimes it takes longer to read, which affects the smoothness of the video)
+	recorder.webcam.Grab(config.AppConfig.VideoCaptureBufferSize)
 
 	logrus.Debugf("input codec: %s", recorder.webcam.CodecString())
 
@@ -393,6 +391,7 @@ func (recorder *Recorder) ProcessWriteQueue(done chan bool) error {
 			switch token.index {
 			case 0:
 				token.writeFrame(filepath.Join(recorder.outputFolder, "frame.first.jpg"))
+				token.writeThumb(filepath.Join(recorder.outputFolder, "thumb.jpg"))
 			case recorder.frameCount / 2:
 				token.writeFrame(filepath.Join(recorder.outputFolder, "frame.middle.jpg"))
 			case recorder.frameCount - 1:
@@ -404,6 +403,18 @@ func (recorder *Recorder) ProcessWriteQueue(done chan bool) error {
 			token.waitGroup.Done()
 		}
 	}
+}
+
+func (token *FrameToken) writeThumb(filename string) {
+	logrus.Debugf("writing thumbnail image: %s", filename)
+	thumb := gocv.NewMat()
+	// compute the width based on the aspect ratio
+	width := int(float64(config.AppConfig.ThumbnailHeight) * (float64(config.AppConfig.VideoResolutionWidth) / float64(config.AppConfig.VideoResolutionHeight)))
+	gocv.Resize(token.frame, &thumb, image.Point{width, config.AppConfig.ThumbnailHeight}, 0, 0, gocv.InterpolationLinear)
+	go func() {
+		gocv.IMWrite(filename, thumb)
+		safeClose(&thumb)
+	}()
 }
 
 func (token *FrameToken) writeFrame(filename string) {
@@ -537,7 +548,6 @@ func (recorder *Recorder) Close() {
 
 	// this will signal to stop the background tasks
 	recorder.done <- true
-	close(recorder.done)
 
 	safeClose(recorder.webcam)
 	safeClose(recorder.writer)
@@ -548,6 +558,8 @@ func (recorder *Recorder) Close() {
 	if recorder.liveView {
 		safeClose(recorder.window)
 	}
+
+	close(recorder.done)
 
 	logrus.Debug("Close() completed")
 }

@@ -46,6 +46,7 @@ type (
 		EPCFilterRegex, SKUFilterRegex                *regexp.Regexp
 		ImageProcessScale                             int
 		SaveCascadeDetectionsToDisk                   bool
+		ThumbnailHeight                               int
 	}
 )
 
@@ -105,6 +106,7 @@ func InitConfig() error {
 			return errors.Wrapf(err, "Unable to load config variables: %v", err)
 		}
 	}
+	AppConfig.ThumbnailHeight = getOrDefaultInt(config, "thumbnailHeight", 200)
 
 	AppConfig.EPCFilter = getOrDefaultString(config, "epcFilter", "*")
 	if AppConfig.EPCFilterRegex, err = regexp.Compile(filterToRegexPattern(AppConfig.EPCFilter)); err != nil {

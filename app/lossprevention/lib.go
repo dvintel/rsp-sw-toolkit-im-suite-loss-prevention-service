@@ -80,7 +80,7 @@ func triggerRecord(tag *Tag) error {
 
 	folderName := fmt.Sprintf(videoFolderPattern, helper.UnixMilliNow(), tag.ProductID, tag.Epc)
 	logrus.Debugf("recording filename: %s/video%s", folderName, config.AppConfig.VideoOutputExtension)
-	go camera.RecordVideoToDisk(config.AppConfig.VideoDevice, config.AppConfig.RecordingDuration, folderName)
+	go camera.RecordVideoToDiskBasic(config.AppConfig.VideoDevice, config.AppConfig.RecordingDuration, folderName)
 
 	return nil
 }
