@@ -28,7 +28,7 @@ services:
       port: "8080"
       DISPLAY: unix:0
       loggingLevel: "debug"
-      videoUrlBase: "http://localhost:9091/material-dashboard/view.html?v="
+      videoUrlBase: "http://localhost:4201/lossprevention/view?v="
       liveView: "true"
       fullscreenView: "false"
       showVideoDebugStats: "true"
@@ -43,18 +43,19 @@ services:
       videoOutputExtension: ".mp4"
 
 #      ipCameraStreamUrl: ""
+      # NOTE: If using a usb camera, make sure this number matches the one in the `devices` field below
       usbCameraDeviceIndex: 0
 
       epcFilter: "*"
-      #      epcFilter: "3035*72[CB][0-6EF]"
+#      epcFilter: "3035*72[CB][0-6EF]"
       skuFilter: "*"
-
+    devices:
+      # NOTE: If using a usb camera, make sure to map the right one here
+      - /dev/video0:/dev/video0
     volumes:
       - ./recordings:/recordings
       - /tmp/.X11-unix:/tmp/.X11-unix
       - /var/run/dbus:/var/run/dbus
-    devices:
-      - /dev/video0:/dev/video0
 
   nginx:
     image: nginx:latest

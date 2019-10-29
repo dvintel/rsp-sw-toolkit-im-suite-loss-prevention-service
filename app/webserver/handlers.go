@@ -21,9 +21,11 @@ package webserver
 import (
 	"context"
 	"github.com/sirupsen/logrus"
+	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/web"
 	"io/ioutil"
 	"net/http"
+	"path/filepath"
 )
 
 // Handler represents the User API method handler set.
@@ -50,10 +52,14 @@ func (handler *Handler) ListRecordings(ctx context.Context, writer http.Response
 	}
 
 	resp := make([]string, len(files))
-	for i, file := range files {
-		resp[i] = file.Name()
+	index := 0
+	for _, file := range files {
+		if file.Mode().IsRegular() && filepath.Ext(file.Name()) == config.AppConfig.VideoOutputExtension {
+			resp[index] = file.Name()
+			index++
+		}
 	}
 
-	web.Respond(ctx, writer, resp, http.StatusOK)
+	web.Respond(ctx, writer, resp[:index], http.StatusOK)
 	return nil
 }

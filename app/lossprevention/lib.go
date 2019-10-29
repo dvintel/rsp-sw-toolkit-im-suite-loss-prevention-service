@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	moved            = "moved"
-	videoFilePattern = "/recordings/%v_%s_%s%s"
+	moved              = "moved"
+	videoFolderPattern = "/recordings/%v_%s_%s"
 )
 
 func HandleDataPayload(payload *DataPayload) error {
@@ -78,9 +78,9 @@ func HandleDataPayload(payload *DataPayload) error {
 
 func triggerRecord(tag *Tag) error {
 
-	filename := fmt.Sprintf(videoFilePattern, helper.UnixMilliNow(), tag.ProductID, tag.Epc, config.AppConfig.VideoOutputExtension)
-	logrus.Debugf("recording filename: %s", filename)
-	go camera.RecordVideoToDisk(config.AppConfig.VideoDevice, config.AppConfig.RecordingDuration, filename)
+	folderName := fmt.Sprintf(videoFolderPattern, helper.UnixMilliNow(), tag.ProductID, tag.Epc)
+	logrus.Debugf("recording filename: %s/video%s", folderName, config.AppConfig.VideoOutputExtension)
+	go camera.RecordVideoToDisk(config.AppConfig.VideoDevice, config.AppConfig.RecordingDuration, folderName)
 
 	return nil
 }

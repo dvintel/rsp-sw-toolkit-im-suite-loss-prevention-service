@@ -25,6 +25,7 @@ import (
 	"gocv.io/x/gocv"
 	"image"
 	"image/color"
+	"path/filepath"
 	"sync"
 )
 
@@ -108,6 +109,7 @@ type FrameToken struct {
 	waitGroup    sync.WaitGroup
 	overlays     []FrameOverlay
 	overlayMutex sync.Mutex
+	index        int
 }
 
 type FrameOverlay struct {
@@ -115,18 +117,21 @@ type FrameOverlay struct {
 	drawOptions DrawOptions
 }
 
-func (recorder *Recorder) NewFrameToken() *FrameToken {
+func (recorder *Recorder) NewFrameToken(index int) *FrameToken {
 	return &FrameToken{
 		startTS:   helper.UnixMilliNow(),
 		frame:     gocv.NewMat(),
 		procFrame: gocv.NewMat(),
+		index:     index,
 	}
 }
 
 type Recorder struct {
 	videoDevice    string
+	outputFolder   string
 	outputFilename string
 	fps            float64
+	frameCount     int
 	codec          string
 	width          int
 	height         int
@@ -146,10 +151,11 @@ type Recorder struct {
 	closeBuffer chan *FrameToken
 }
 
-func NewRecorder(videoDevice string, outputFilename string) *Recorder {
+func NewRecorder(videoDevice string, outputFolder string) *Recorder {
 	recorder := &Recorder{
 		videoDevice:    videoDevice,
-		outputFilename: outputFilename,
+		outputFolder:   outputFolder,
+		outputFilename: filepath.Join(outputFolder, "video"+config.AppConfig.VideoOutputExtension),
 		width:          config.AppConfig.VideoResolutionWidth,
 		height:         config.AppConfig.VideoResolutionHeight,
 		liveView:       config.AppConfig.LiveView,

@@ -31,9 +31,10 @@ import (
 	"image/color"
 	"io"
 	"net/url"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -44,6 +45,8 @@ const (
 	fontScale     = 0.75
 	fontThickness = 2
 	textPadding   = 5
+
+	fileMode = 0777
 )
 
 var (
@@ -77,46 +80,46 @@ var (
 				maxScaleY:    0.8,
 			},
 		},
+		//
+		//{
+		//	name:     "profile_face",
+		//	filename: "haarcascade_profileface.xml",
+		//	drawOptions: DrawOptions{
+		//		annotation: "Employee",
+		//		color:      blue,
+		//		thickness:  2,
+		//	},
+		//	detectParams: DetectParams{
+		//		scale:        1.4,
+		//		minNeighbors: 4,
+		//		flags:        0,
+		//		minScaleX:    0.1,
+		//		minScaleY:    0.1,
+		//		maxScaleX:    0.8,
+		//		maxScaleY:    0.8,
+		//	},
+		//},
+		//{
+		//	name:     "eye",
+		//	filename: "haarcascade_eye.xml",
+		//	drawOptions: DrawOptions{
+		//		color:          blue,
+		//		thickness:      1,
+		//		renderAsCircle: true,
+		//	},
+		//	detectParams: DetectParams{
+		//		scale:        1.5,
+		//		minNeighbors: 5,
+		//		flags:        0,
+		//		minScaleX:    0.01,
+		//		minScaleY:    0.01,
+		//		maxScaleX:    0.1,
+		//		maxScaleY:    0.1,
+		//	},
+		//},
 
 		{
-			name:     "profile face",
-			filename: "haarcascade_profileface.xml",
-			drawOptions: DrawOptions{
-				annotation: "Employee",
-				color:      blue,
-				thickness:  2,
-			},
-			detectParams: DetectParams{
-				scale:        1.4,
-				minNeighbors: 4,
-				flags:        0,
-				minScaleX:    0.1,
-				minScaleY:    0.1,
-				maxScaleX:    0.8,
-				maxScaleY:    0.8,
-			},
-		},
-		{
-			name:     "eye",
-			filename: "haarcascade_eye.xml",
-			drawOptions: DrawOptions{
-				color:          blue,
-				thickness:      1,
-				renderAsCircle: true,
-			},
-			detectParams: DetectParams{
-				scale:        1.5,
-				minNeighbors: 5,
-				flags:        0,
-				minScaleX:    0.01,
-				minScaleY:    0.01,
-				maxScaleX:    0.1,
-				maxScaleY:    0.1,
-			},
-		},
-
-		{
-			name:     "upper body",
+			name:     "upper_body",
 			filename: "haarcascade_upperbody.xml",
 			drawOptions: DrawOptions{
 				color:      white,
@@ -134,7 +137,7 @@ var (
 			},
 		},
 		{
-			name:     "full body",
+			name:     "full_body",
 			filename: "haarcascade_fullbody.xml",
 			drawOptions: DrawOptions{
 				color:      orange,
@@ -225,6 +228,10 @@ func (recorder *Recorder) Open() error {
 
 	logrus.Debugf("input codec: %s", recorder.webcam.CodecString())
 
+	if err = os.MkdirAll(recorder.outputFolder, fileMode); err != nil {
+		return err
+	}
+
 	logrus.Debug("Open() completed")
 	return nil
 }
@@ -236,7 +243,7 @@ func (recorder *Recorder) Begin() time.Time {
 
 	//go recorder.ProcessOpenVINOQueue(recorder.done)
 
-	if recorder.outputFilename != "" {
+	if recorder.outputFolder != "" {
 		go recorder.ProcessWriteQueue(recorder.done)
 	}
 
@@ -349,7 +356,6 @@ func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
 				}
 			}
 
-			// todo: use a buffered channel instead of separate go routines
 			recorder.waitGroup.Add(1)
 			recorder.closeBuffer <- frameToken
 
@@ -383,9 +389,31 @@ func (recorder *Recorder) ProcessWriteQueue(done chan bool) error {
 			if err := recorder.writer.Write(token.frame); err != nil {
 				logrus.Errorf("error occurred while writing video to disk: %v", err)
 			}
+
+			switch token.index {
+			case 0:
+				token.writeFrame(filepath.Join(recorder.outputFolder, "frame.first.jpg"))
+			case recorder.frameCount / 2:
+				token.writeFrame(filepath.Join(recorder.outputFolder, "frame.middle.jpg"))
+			case recorder.frameCount - 1:
+				token.writeFrame(filepath.Join(recorder.outputFolder, "frame.last.jpg"))
+			default:
+				break
+			}
+
 			token.waitGroup.Done()
 		}
 	}
+}
+
+func (token *FrameToken) writeFrame(filename string) {
+	logrus.Debugf("writing image: %s", filename)
+	gocv.IMWrite(filename, token.frame)
+}
+
+func (token *FrameToken) writeFrameRegion(filename string, region image.Rectangle) {
+	logrus.Debugf("writing image region: %s (%+v)", filename, region)
+	gocv.IMWrite(filename, token.frame.Region(region))
 }
 
 func (recorder *Recorder) ProcessClassifierQueue(done chan bool, cascadeQueue *CascadeQueue) {
@@ -414,11 +442,12 @@ func (recorder *Recorder) ProcessClassifierQueue(done chan bool, cascadeQueue *C
 				logrus.Debugf("Detected %v %s(s)", len(rects), cascade.name)
 
 				if config.AppConfig.SaveCascadeDetectionsToDisk {
-					prefix := strings.TrimSuffix(recorder.outputFilename, config.AppConfig.VideoOutputExtension)
 					if cascadeQueue.found < len(rects) {
+						// todo: should this not overwrite existing rects and just add, so if 1 is found
+						// 		 and then 2 is found later on, we have a total of 3, not just the most recent 2?
 						cascadeQueue.found = len(rects)
 						for i, rect := range rects {
-							gocv.IMWrite(fmt.Sprintf("%s.%s.%d.jpg", prefix, cascade.name, i), token.frame.Region(transformProcessRect(rect)))
+							token.writeFrameRegion(filepath.Join(recorder.outputFolder, fmt.Sprintf("%s.%d.jpg", cascade.name, i)), transformProcessRect(rect))
 						}
 					}
 				}
@@ -555,7 +584,7 @@ func SanityCheck() error {
 	}
 	defer cameraSemaphone.Release(1)
 
-	recorder := NewRecorder(config.AppConfig.VideoDevice, "")
+	recorder := NewRecorder(config.AppConfig.VideoDevice, "/tmp")
 	recorder.liveView = false
 	if err := recorder.Open(); err != nil {
 		logrus.Errorf("error: %v", err)
@@ -569,7 +598,7 @@ func SanityCheck() error {
 	return nil
 }
 
-func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) error {
+func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string) error {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("recovered from panic: %+v", r)
@@ -584,7 +613,7 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) e
 	}
 	defer cameraSemaphone.Release(1)
 
-	recorder := NewRecorder(videoDevice, outputFilename)
+	recorder := NewRecorder(videoDevice, outputFolder)
 	if err := recorder.Open(); err != nil {
 		logrus.Errorf("error: %v", err)
 		return err
@@ -593,11 +622,11 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) e
 	defer recorder.Close()
 
 	begin := recorder.Begin()
-	frameCount := int(recorder.fps * float64(seconds))
+	recorder.frameCount = int(recorder.fps * float64(seconds))
 
-	for i := 0; i < frameCount; i++ {
+	for i := 0; i < recorder.frameCount; i++ {
 
-		token := recorder.NewFrameToken()
+		token := recorder.NewFrameToken(i)
 		if ok := recorder.webcam.Read(&token.frame); !ok {
 			return fmt.Errorf("unable to read from webcam. device closed: %+v", recorder.videoDevice)
 		}
@@ -628,7 +657,7 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFilename string) e
 	end := recorder.Wait()
 	logrus.Debugf("recording took %v", end.Sub(begin))
 
-	logrus.Infof("Video url: %s%s", config.AppConfig.VideoUrlBase, url.QueryEscape(outputFilename))
+	logrus.Infof("Video url: %s%s", config.AppConfig.VideoUrlBase, url.QueryEscape(recorder.outputFilename))
 
 	return nil
 }
