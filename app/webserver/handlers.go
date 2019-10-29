@@ -26,6 +26,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
+	"strconv"
+	"strings"
+)
+
+const (
+	baseFolder = "/recordings"
 )
 
 // Handler represents the User API method handler set.
@@ -45,21 +51,47 @@ func (handler *Handler) Index(ctx context.Context, writer http.ResponseWriter, r
 //nolint:unparam
 func (handler *Handler) ListRecordings(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
 	// todo: limit recording history, or use pagination
-	files, err := ioutil.ReadDir("/recordings")
+	folders, err := ioutil.ReadDir(baseFolder)
 	if err != nil {
 		logrus.Error(err)
-		web.Respond(ctx, writer, "", http.StatusInternalServerError)
+		web.Respond(ctx, writer, "Internal Error", http.StatusInternalServerError)
 	}
 
-	resp := make([]string, len(files))
-	index := 0
-	for _, file := range files {
-		if file.Mode().IsRegular() && filepath.Ext(file.Name()) == config.AppConfig.VideoOutputExtension {
-			resp[index] = file.Name()
-			index++
+	resp := NewRecordingsResponse(len(folders))
+	for i, folder := range folders {
+		tokens := strings.Split(folder.Name(), "_")
+		if len(tokens) != 3 {
+			logrus.Warnf("folder: %s does not appear to match expected format! skipping.", folder.Name())
+			continue
 		}
-	}
+		ts, err := strconv.ParseInt(tokens[0], 10, 64)
+		if err != nil {
+			logrus.Warnf("unable to parse timestamp from folder name: %v", err)
+			continue
+		}
+		files, err := ioutil.ReadDir(filepath.Join(baseFolder, folder.Name()))
+		if err != nil {
+			logrus.Warnf("unable to read recording directory %s: %v", folder.Name(), err)
+			continue
+		}
 
-	web.Respond(ctx, writer, resp[:index], http.StatusOK)
+		info := RecordingInfo{
+			FolderName: folder.Name(),
+			Timestamp: ts,
+			ProductId: tokens[1],
+			EPC: tokens[2],
+			Video: "video" + config.AppConfig.VideoOutputExtension,
+			Thumb: "thumb.jpg",
+		}
+		for _, file := range files {
+			if strings.HasSuffix(file.Name(), ".jpg") && file.Name() != "thumb.jpg" && !strings.HasPrefix(file.Name(), "frame.") {
+				info.Detections = append(info.Detections, file.Name())
+			}
+		}
+
+		resp.Recordings[i] = info
+	}
+	logrus.Tracef("%+v", resp)
+	web.Respond(ctx, writer, resp, http.StatusOK)
 	return nil
 }

@@ -47,6 +47,8 @@ type (
 		ImageProcessScale                             int
 		SaveCascadeDetectionsToDisk                   bool
 		ThumbnailHeight                               int
+		EnableCORS                                    bool
+		CORSOrigin                                    string
 	}
 )
 
@@ -107,6 +109,8 @@ func InitConfig() error {
 		}
 	}
 	AppConfig.ThumbnailHeight = getOrDefaultInt(config, "thumbnailHeight", 200)
+	AppConfig.EnableCORS = getOrDefaultBool(config, "enableCORS", true)
+	AppConfig.CORSOrigin = getOrDefaultString(config, "corsOrigin", "*")
 
 	AppConfig.EPCFilter = getOrDefaultString(config, "epcFilter", "*")
 	if AppConfig.EPCFilterRegex, err = regexp.Compile(filterToRegexPattern(AppConfig.EPCFilter)); err != nil {

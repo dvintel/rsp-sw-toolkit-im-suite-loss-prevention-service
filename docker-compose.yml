@@ -28,7 +28,8 @@ services:
       port: "8080"
       DISPLAY: unix:0
       loggingLevel: "debug"
-      videoUrlBase: "http://localhost:4201/lossprevention/view?v="
+      # Point this to the nginx container port
+      videoUrlBase: "http://localhost:9091/recordings"
       liveView: "true"
       fullscreenView: "false"
       showVideoDebugStats: "true"
@@ -41,6 +42,8 @@ services:
       videoOutputFps: 25
       videoOutputCodec: "avc1"
       videoOutputExtension: ".mp4"
+      enableCORS: "true"
+      corsOrigin: "*"
 
 #      ipCameraStreamUrl: ""
       # NOTE: If using a usb camera, make sure this number matches the one in the `devices` field below
