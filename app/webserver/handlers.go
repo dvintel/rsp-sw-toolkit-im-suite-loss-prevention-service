@@ -77,11 +77,11 @@ func (handler *Handler) ListRecordings(ctx context.Context, writer http.Response
 
 		info := RecordingInfo{
 			FolderName: folder.Name(),
-			Timestamp: ts,
-			ProductId: tokens[1],
-			EPC: tokens[2],
-			Video: "video" + config.AppConfig.VideoOutputExtension,
-			Thumb: "thumb.jpg",
+			Timestamp:  ts,
+			ProductId:  tokens[1],
+			EPC:        tokens[2],
+			Video:      "video" + config.AppConfig.VideoOutputExtension,
+			Thumb:      "thumb.jpg",
 		}
 		for _, file := range files {
 			if strings.HasSuffix(file.Name(), ".jpg") && file.Name() != "thumb.jpg" && !strings.HasPrefix(file.Name(), "frame.") {

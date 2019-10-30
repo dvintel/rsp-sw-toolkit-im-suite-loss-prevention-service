@@ -10,9 +10,9 @@ type RecordingsResponse struct {
 
 func NewRecordingsResponse(count int) RecordingsResponse {
 	return RecordingsResponse{
-		BaseUrl:    config.AppConfig.VideoUrlBase,
+		BaseUrl:     config.AppConfig.VideoUrlBase,
 		ThumbHeight: config.AppConfig.ThumbnailHeight,
-		Recordings: make([]RecordingInfo, count),
+		Recordings:  make([]RecordingInfo, count),
 	}
 }
 
