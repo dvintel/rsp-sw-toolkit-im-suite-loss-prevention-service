@@ -132,7 +132,7 @@ func filterToRegexPattern(filter string) string {
 func getOrDefaultInt(config *configuration.Configuration, path string, defaultValue int) int {
 	value, err := config.GetInt(path)
 	if err != nil {
-		logrus.Debugf("%s was missing from configuration, setting to default value of %s", path, defaultValue)
+		logrus.Debugf("%s was missing from configuration, setting to default value of %v", path, defaultValue)
 		return defaultValue
 	}
 	return value
@@ -141,7 +141,7 @@ func getOrDefaultInt(config *configuration.Configuration, path string, defaultVa
 func getOrDefaultBool(config *configuration.Configuration, path string, defaultValue bool) bool {
 	value, err := config.GetBool(path)
 	if err != nil {
-		logrus.Debugf("%s was missing from configuration, setting to default value of %s", path, defaultValue)
+		logrus.Debugf("%s was missing from configuration, setting to default value of %v", path, defaultValue)
 		return defaultValue
 	}
 	return value
@@ -150,7 +150,7 @@ func getOrDefaultBool(config *configuration.Configuration, path string, defaultV
 func getOrDefaultString(config *configuration.Configuration, path string, defaultValue string) string {
 	value, err := config.GetString(path)
 	if err != nil {
-		logrus.Debugf("%s was missing from configuration, setting to default value of %s", path, defaultValue)
+		logrus.Debugf("%s was missing from configuration, setting to default value of %v", path, defaultValue)
 		return defaultValue
 	}
 	return value

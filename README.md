@@ -13,27 +13,17 @@
 - `rsp-sw-toolkit-gw`
 - `inventory-suite`
 
-### TL;DR
-**_Want to just get up and running quickly?_**
-
-Run this command:
-```bash
-make build start
-```
-
-This command will create the docker builder image, compile the source code, builds application docker image, starts app in foreground
-
 ### Build Instructions
 #### Pre-build
-Build the docker image that is used to compile the source code. This should only have to be run once, or if `go.mod` is modified.
+This command only needs to be run once and will take a long time.
 ```bash
-make builder
+sudo GIT_TOKEN=xxx make prepare
 ```
 
 #### Compile and Run
 Compile the Go source code and builder docker container
 ```bash
-make build
+sudo make build
 ```
 
 Start the docker-compose containers in the foreground
@@ -42,35 +32,3 @@ make start
 ```
 
 To stop the docker services gracefully, simply press `Ctrl-C` in your terminal. Press `Ctrl-C` a second time to kill the containers.
-
-#### Makefile commands
-Run the docker-compose containers in the background
-```bash
-make deploy
-```
-
-Tail the container logs
-```bash
-make tail
-```
-
-Stop or kill services running in the background
-```bash
-# shutdown containers gracefully
-make down
-
-# force kill containers
-make kill
-```
-
-#### Makefile macro commands
-These commands simulate running multiple commands for ease of use
-```bash
-# rebuild and start in the foreground
-# equivalent to running: down, build, docker, start
-make iterate      
-
-# rebuild and start in the background
-# equivalent to running: down, build, docker, deploy, tail
-make iterate-d
-```
