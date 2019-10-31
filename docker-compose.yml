@@ -54,7 +54,7 @@ services:
       enableEyeDetection: "false"
 
       # NOTE: These are the text written above the detected object. Set to "" to not display any text
-      faceDetectionAnnotation: "This is a test!"
+      faceDetectionAnnotation: "Bacon Thief!"
       profileFaceDetectionAnnotation: "Employee"
       upperBodyDetectionAnnotation: "Employee"
       fullBodyDetectionAnnotation: "Bacon Thief!"
@@ -68,7 +68,7 @@ services:
       eyeDetectionXmlFile: "haarcascade_eye.xml"
 
       faceDetectionColor: 0xff0000
-      profileFaceDetectionColor: 0x00ff00
+      profileFaceDetectionColor: 0x0000ff
       upperBodyDetectionColor: 0xffffff
       fullBodyDetectionColor: 0xffff00
       eyeDetectionColor: 0x0000ff
