@@ -91,13 +91,7 @@ delete-all-recordings:
 
 iterate: build up
 
-iterate-d:
-	$(compose) down --remove-orphans & \
-	$(MAKE) build; \
-	wait
-
-	$(compose) up --remove-orphans -d
-	$(MAKE) tail
+iterate-d: build up-d tail
 
 restart:
 	$(compose) restart $(args)
@@ -105,13 +99,14 @@ restart:
 kill:
 	$(compose) kill $(args)
 
-tail:
+tail: up-d
 	$(trap_ctrl_c) $(call log,-f --tail=10, $(args))
 
 down:
 	$(compose) down --remove-orphans $(args)
 
 up: build
+	xhost +
 	$(compose) up --remove-orphans $(args)
 
 up-d: build
