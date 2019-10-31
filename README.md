@@ -14,21 +14,16 @@
 - `inventory-suite`
 
 ### Build Instructions
-#### Pre-build
-This command only needs to be run once and will take a long time.
+Compile the Go source code, create the docker images, and start the docker-compose services
+
+> :warning: **_Notice_**
+>
+> Replace `GIT_TOKEN=...` with your access token generated from `github.impcloud.net` like so: `GIT_TOKEN=abc34f2323fcda2ad23`
+
 ```bash
-sudo GIT_TOKEN=xxx make prepare
+sudo GIT_TOKEN=... make -j iterate
 ```
 
-#### Compile and Run
-Compile the Go source code and builder docker container
-```bash
-sudo make build
-```
+> The first time you run this it may take quite some time. Grab some :coffee:.
 
-Start the docker-compose containers in the foreground
-```bash
-make start
-```
-
-To stop the docker services gracefully, simply press `Ctrl-C` in your terminal. Press `Ctrl-C` a second time to kill the containers.
+> To stop the docker services gracefully, simply press `Ctrl-C` in your terminal. Press `Ctrl-C` a second time to kill the containers.
