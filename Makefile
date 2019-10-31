@@ -89,12 +89,7 @@ build/docker: build/openvino-runtime $(PROJECT_NAME) entrypoint.sh Dockerfile $(
 delete-all-recordings:
 	sudo find recordings/ -mindepth 1 -delete
 
-iterate:
-	$(compose) down --remove-orphans & \
-	$(MAKE) build; \
-	wait
-
-	$(compose) up --remove-orphans
+iterate: build up
 
 iterate-d:
 	$(compose) down --remove-orphans & \
@@ -116,10 +111,10 @@ tail:
 down:
 	$(compose) down --remove-orphans $(args)
 
-up:
+up: build
 	$(compose) up --remove-orphans $(args)
 
-up-d:
+up-d: build
 	$(MAKE) up args="-d $(args)"
 
 deploy: up-d

@@ -111,8 +111,8 @@ var (
 		//		flags:        0,
 		//		minScaleX:    0.01,
 		//		minScaleY:    0.01,
-		//		maxScaleX:    0.1,
-		//		maxScaleY:    0.1,
+		//		maxScaleX:    0.025,
+		//		maxScaleY:    0.025,
 		//	},
 		//},
 		{
@@ -234,9 +234,9 @@ func (recorder *Recorder) Open() error {
 
 func (recorder *Recorder) writeThumb(filename string) {
 	logrus.Debugf("writing thumbnail image: %s", filename)
-	thumb := gocv.NewMat()
 	// compute the width based on the aspect ratio
 	width := int(float64(config.AppConfig.ThumbnailHeight) * (float64(config.AppConfig.VideoResolutionWidth) / float64(config.AppConfig.VideoResolutionHeight)))
+	thumb := gocv.NewMat()
 	gocv.Resize(recorder.frame, &thumb, image.Point{width, config.AppConfig.ThumbnailHeight}, 0, 0, gocv.InterpolationLinear)
 	go func() {
 		gocv.IMWrite(filepath.Join(recorder.outputFolder, filename), thumb)
@@ -246,12 +246,21 @@ func (recorder *Recorder) writeThumb(filename string) {
 
 func (recorder *Recorder) writeFrame(filename string) {
 	logrus.Debugf("writing image: %s", filename)
-	gocv.IMWrite(filepath.Join(recorder.outputFolder, filename), recorder.frame)
+	cloneFrame := recorder.frame.Clone()
+	go func(cloneFrame gocv.Mat) {
+		gocv.IMWrite(filepath.Join(recorder.outputFolder, filename), cloneFrame)
+		safeClose(&cloneFrame)
+	}(cloneFrame)
 }
 
 func (recorder *Recorder) writeFrameRegion(filename string, region image.Rectangle) {
 	logrus.Debugf("writing image region: %s (%+v)", filename, region)
-	gocv.IMWrite(filepath.Join(recorder.outputFolder, filename), recorder.frame.Region(region))
+	regionMat := recorder.frame.Region(region)
+	cloneFrame := regionMat.Clone()
+	go func(cloneFrame gocv.Mat) {
+		gocv.IMWrite(filepath.Join(recorder.outputFolder, filename), cloneFrame)
+		safeClose(&cloneFrame)
+	}(cloneFrame)
 }
 
 // transformProcessRect takes a smaller scaled rectangle produced by a processing function and transforms it
@@ -419,12 +428,11 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string, liv
 
 					if config.AppConfig.SaveCascadeDetectionsToDisk {
 						if cascade.found < len(rects) {
-							// todo: should this not overwrite existing rects and just add, so if 1 is found
-							// 		 and then 2 is found later on, we have a total of 3, not just the most recent 2?
 							cascade.found = len(rects)
 							for i, rect := range rects {
-								recorder.writeFrameRegion(filepath.Join(recorder.outputFolder, fmt.Sprintf("%s.%d.jpg", cascade.name, i+cascade.written)), transformProcessRect(rect))
+								recorder.writeFrameRegion(fmt.Sprintf("%s.%d.jpg", cascade.name, i+cascade.written), transformProcessRect(rect))
 							}
+							// this keeps track of how many we have written before. so if we see 1 face and write it, then see 2 faces, it will not overwrite the first face found
 							cascade.written += cascade.found
 						}
 					}

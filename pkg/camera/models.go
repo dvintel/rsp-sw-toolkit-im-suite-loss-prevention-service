@@ -102,8 +102,8 @@ type Cascade struct {
 	classifier   *gocv.CascadeClassifier
 }
 
-func (cascadeFile CascadeFile) AsNewCascade(classifier *gocv.CascadeClassifier) Cascade {
-	return Cascade{
+func (cascadeFile CascadeFile) AsNewCascade(classifier *gocv.CascadeClassifier) *Cascade {
+	return &Cascade{
 		name:         cascadeFile.name,
 		detectParams: cascadeFile.detectParams,
 		drawOptions:  cascadeFile.drawOptions,
@@ -136,7 +136,7 @@ type Recorder struct {
 	processFrame gocv.Mat
 
 	overlays []FrameOverlay
-	cascades []Cascade
+	cascades []*Cascade
 }
 
 func NewRecorder(videoDevice string, outputFolder string, liveView bool) *Recorder {
