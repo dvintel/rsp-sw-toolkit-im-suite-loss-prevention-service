@@ -31,24 +31,39 @@ import (
 
 type (
 	variables struct {
-		ServiceName, LoggingLevel, Port               string
-		TelemetryEndpoint, TelemetryDataStoreName     string
-		VideoUrlBase, CoreCommandUrl                  string
-		VideoDevice                                   string
-		LiveView, FullscreenView, ShowVideoDebugStats bool
-		RecordingDuration                             int
-		VideoResolutionWidth, VideoResolutionHeight   int
-		VideoOutputFps                                int
-		VideoOutputCodec, VideoOutputExtension        string
-		VideoCaptureFOURCC                            string
-		VideoCaptureBufferSize                        int
-		EPCFilter, SKUFilter                          string
-		EPCFilterRegex, SKUFilterRegex                *regexp.Regexp
-		ImageProcessScale                             int
-		SaveCascadeDetectionsToDisk                   bool
-		ThumbnailHeight                               int
-		EnableCORS                                    bool
-		CORSOrigin                                    string
+		ServiceName, LoggingLevel, Port                             string
+		TelemetryEndpoint, TelemetryDataStoreName                   string
+		VideoUrlBase, CoreCommandUrl                                string
+		VideoDevice                                                 string
+		LiveView, FullscreenView, ShowVideoDebugStats               bool
+		RecordingDuration                                           int
+		VideoResolutionWidth, VideoResolutionHeight                 int
+		VideoOutputFps                                              int
+		VideoOutputCodec, VideoOutputExtension                      string
+		VideoCaptureFOURCC                                          string
+		VideoCaptureBufferSize                                      int
+		EPCFilter, SKUFilter                                        string
+		EPCFilterRegex, SKUFilterRegex                              *regexp.Regexp
+		ImageProcessScale                                           int
+		SaveCascadeDetectionsToDisk                                 bool
+		ThumbnailHeight                                             int
+		EnableCORS                                                  bool
+		CORSOrigin                                                  string
+		EnableFaceDetection                                         bool
+		FaceDetectionColor                                          float64
+		FaceDetectionXmlFile, FaceDetectionAnnotation               string
+		EnableProfileFaceDetection                                  bool
+		ProfileFaceDetectionColor                                   float64
+		ProfileFaceDetectionXmlFile, ProfileFaceDetectionAnnotation string
+		EnableUpperBodyDetection                                    bool
+		UpperBodyDetectionColor                                     float64
+		UpperBodyDetectionXmlFile, UpperBodyDetectionAnnotation     string
+		EnableFullBodyDetection                                     bool
+		FullBodyDetectionColor                                      float64
+		FullBodyDetectionXmlFile, FullBodyDetectionAnnotation       string
+		EnableEyeDetection                                          bool
+		EyeDetectionColor                                           float64
+		EyeDetectionXmlFile, EyeDetectionAnnotation                 string
 	}
 )
 
@@ -122,11 +137,45 @@ func InitConfig() error {
 		return errors.Wrapf(err, "Unable to load config variables: %v", err)
 	}
 
+	AppConfig.EnableFaceDetection = getOrDefaultBool(config, "enableFaceDetection", true)
+	AppConfig.FaceDetectionColor = getOrDefaultFloat64(config, "faceDetectionColor", 0)
+	AppConfig.FaceDetectionXmlFile = getOrDefaultString(config, "faceDetectionXmlFile", "haarcascade_frontalface_default.xml")
+	AppConfig.FaceDetectionAnnotation = getOrDefaultString(config, "faceDetectionAnnotation", "")
+
+	AppConfig.EnableProfileFaceDetection = getOrDefaultBool(config, "enableProfileFaceDetection", true)
+	AppConfig.ProfileFaceDetectionColor = getOrDefaultFloat64(config, "profileFaceDetectionColor", 0)
+	AppConfig.ProfileFaceDetectionXmlFile = getOrDefaultString(config, "profileFaceDetectionXmlFile", "haarcascade_profileface.xml")
+	AppConfig.ProfileFaceDetectionAnnotation = getOrDefaultString(config, "profileFaceDetectionAnnotation", "")
+
+	AppConfig.EnableUpperBodyDetection = getOrDefaultBool(config, "enableUpperBodyDetection", true)
+	AppConfig.UpperBodyDetectionColor = getOrDefaultFloat64(config, "upperBodyDetectionColor", 0)
+	AppConfig.UpperBodyDetectionXmlFile = getOrDefaultString(config, "upperBodyDetectionXmlFile", "haarcascade_upperbody.xml")
+	AppConfig.UpperBodyDetectionAnnotation = getOrDefaultString(config, "upperBodyDetectionAnnotation", "")
+
+	AppConfig.EnableFullBodyDetection = getOrDefaultBool(config, "enableFullBodyDetection", true)
+	AppConfig.FullBodyDetectionColor = getOrDefaultFloat64(config, "fullBodyDetectionColor", 0)
+	AppConfig.FullBodyDetectionXmlFile = getOrDefaultString(config, "fullBodyDetectionXmlFile", "haarcascade_fullbody.xml")
+	AppConfig.FullBodyDetectionAnnotation = getOrDefaultString(config, "fullBodyDetectionAnnotation", "")
+
+	AppConfig.EnableEyeDetection = getOrDefaultBool(config, "enableEyeDetection", false)
+	AppConfig.EyeDetectionColor = getOrDefaultFloat64(config, "eyeDetectionColor", 0)
+	AppConfig.EyeDetectionXmlFile = getOrDefaultString(config, "eyeDetectionXmlFile", "haarcascade_eye.xml")
+	AppConfig.EyeDetectionAnnotation = getOrDefaultString(config, "eyeDetectionAnnotation", "")
+
 	return nil
 }
 
 func filterToRegexPattern(filter string) string {
 	return "^" + strings.ReplaceAll(filter, "*", ".*") + "$"
+}
+
+func getOrDefaultFloat64(config *configuration.Configuration, path string, defaultValue float64) float64 {
+	value, err := config.GetFloat(path)
+	if err != nil {
+		logrus.Debugf("%s was missing from configuration, setting to default value of %v", path, defaultValue)
+		return defaultValue
+	}
+	return value
 }
 
 func getOrDefaultInt(config *configuration.Configuration, path string, defaultValue int) int {

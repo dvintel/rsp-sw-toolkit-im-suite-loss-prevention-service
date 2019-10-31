@@ -28,7 +28,7 @@ services:
       port: "8080"
       DISPLAY: unix:0
       loggingLevel: "debug"
-      # Point this to the nginx container port
+      # NOTE: Point this to the nginx container port
       videoUrlBase: "http://localhost:9091/recordings"
       liveView: "true"
       fullscreenView: "false"
@@ -45,9 +45,37 @@ services:
       enableCORS: "true"
       corsOrigin: "*"
 
-#      ipCameraStreamUrl: ""
+      # NOTE: These are the various OpenCV detection algorithms you can enable
+      enableFaceDetection: "true"
+      enableProfileFaceDetection: "true"
+      enableUpperBodyDetection: "true"
+      enableFullBodyDetection: "true"
+      # WARNING: Eye detection should probably be turned off as it is slow and doesnt provide much usefulness
+      enableEyeDetection: "false"
+
+      # NOTE: These are the text written above the detected object. Set to "" to not display any text
+      faceDetectionAnnotation: "This is a test!"
+      profileFaceDetectionAnnotation: "Employee"
+      upperBodyDetectionAnnotation: "Employee"
+      fullBodyDetectionAnnotation: "Bacon Thief!"
+      eyeDetectionAnnotation: ""
+
+      # NOTE: [Advanced Option] These are the cascade xml files used to describe the various. Options can be found in `res/data/haarcascades`
+      faceDetectionXmlFile: "haarcascade_frontalface_default.xml"
+      profileFaceDetectionXmlFile: "haarcascade_profileface.xml"
+      upperBodyDetectionXmlFile: "haarcascade_upperbody.xml"
+      fullBodyDetectionXmlFile: "haarcascade_fullbody.xml"
+      eyeDetectionXmlFile: "haarcascade_eye.xml"
+
+      faceDetectionColor: 0xff0000
+      profileFaceDetectionColor: 0x00ff00
+      upperBodyDetectionColor: 0xffffff
+      fullBodyDetectionColor: 0xffff00
+      eyeDetectionColor: 0x0000ff
+
       # NOTE: If using a usb camera, make sure this number matches the one in the `devices` field below
       usbCameraDeviceIndex: 0
+#      ipCameraStreamUrl: ""
 
       epcFilter: "*"
 #      epcFilter: "3035*72[CB][0-6EF]"
@@ -57,6 +85,7 @@ services:
       - /dev/video0:/dev/video0
     volumes:
       - ./recordings:/recordings
+      # NOTE: If not using liveView, these two volumes can be removed
       - /tmp/.X11-unix:/tmp/.X11-unix
       - /var/run/dbus:/var/run/dbus
 

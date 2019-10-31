@@ -60,13 +60,21 @@ var (
 
 	debugStatsColor = green
 
-	cascadeFiles = []CascadeFile{
-		{
+	cascadeFiles []CascadeFile
+)
+
+func convertColor(c float64) color.RGBA {
+	return color.RGBA{R: uint8(uint32(c) >> 16 & 0xff), G: uint8(uint32(c) >> 8 & 0xff), B: uint8(uint32(c) & 0xff), A: 0}
+}
+
+func SetupCascadeFiles() {
+	if config.AppConfig.EnableFaceDetection {
+		cascadeFiles = append(cascadeFiles, CascadeFile{
 			name:     "face",
-			filename: "haarcascade_frontalface_default.xml",
+			filename: config.AppConfig.FaceDetectionXmlFile,
 			drawOptions: DrawOptions{
-				annotation: "Bacon Thief!",
-				color:      red,
+				annotation: config.AppConfig.FaceDetectionAnnotation,
+				color:      convertColor(config.AppConfig.FaceDetectionColor),
 				thickness:  2,
 			},
 			detectParams: DetectParams{
@@ -78,13 +86,16 @@ var (
 				maxScaleX:    0.8,
 				maxScaleY:    0.8,
 			},
-		},
-		{
+		})
+	}
+
+	if config.AppConfig.EnableProfileFaceDetection {
+		cascadeFiles = append(cascadeFiles, CascadeFile{
 			name:     "profile_face",
-			filename: "haarcascade_profileface.xml",
+			filename: config.AppConfig.ProfileFaceDetectionXmlFile,
 			drawOptions: DrawOptions{
-				annotation: "Employee",
-				color:      blue,
+				annotation: config.AppConfig.ProfileFaceDetectionAnnotation,
+				color:      convertColor(config.AppConfig.ProfileFaceDetectionColor),
 				thickness:  2,
 			},
 			detectParams: DetectParams{
@@ -96,32 +107,17 @@ var (
 				maxScaleX:    0.8,
 				maxScaleY:    0.8,
 			},
-		},
-		//{
-		//	name:     "eye",
-		//	filename: "haarcascade_eye.xml",
-		//	drawOptions: DrawOptions{
-		//		color:          blue,
-		//		thickness:      1,
-		//		renderAsCircle: true,
-		//	},
-		//	detectParams: DetectParams{
-		//		scale:        1.5,
-		//		minNeighbors: 5,
-		//		flags:        0,
-		//		minScaleX:    0.01,
-		//		minScaleY:    0.01,
-		//		maxScaleX:    0.025,
-		//		maxScaleY:    0.025,
-		//	},
-		//},
-		{
+		})
+	}
+
+	if config.AppConfig.EnableUpperBodyDetection {
+		cascadeFiles = append(cascadeFiles, CascadeFile{
 			name:     "upper_body",
-			filename: "haarcascade_upperbody.xml",
+			filename: config.AppConfig.UpperBodyDetectionXmlFile,
 			drawOptions: DrawOptions{
-				color:      white,
+				color:      convertColor(config.AppConfig.UpperBodyDetectionColor),
 				thickness:  2,
-				annotation: "Employee",
+				annotation: config.AppConfig.UpperBodyDetectionAnnotation,
 			},
 			detectParams: DetectParams{
 				scale:        1.5,
@@ -132,14 +128,17 @@ var (
 				maxScaleX:    0.75,
 				maxScaleY:    0.75,
 			},
-		},
-		{
+		})
+	}
+
+	if config.AppConfig.EnableFullBodyDetection {
+		cascadeFiles = append(cascadeFiles, CascadeFile{
 			name:     "full_body",
-			filename: "haarcascade_fullbody.xml",
+			filename: config.AppConfig.FullBodyDetectionXmlFile,
 			drawOptions: DrawOptions{
-				color:      orange,
+				color:      convertColor(config.AppConfig.FullBodyDetectionColor),
 				thickness:  2,
-				annotation: "Suspicious Person",
+				annotation: config.AppConfig.FullBodyDetectionAnnotation,
 			},
 			detectParams: DetectParams{
 				scale:        1.4,
@@ -150,9 +149,30 @@ var (
 				maxScaleX:    0.6,
 				maxScaleY:    0.8,
 			},
-		},
+		})
 	}
-)
+
+	if config.AppConfig.EnableEyeDetection {
+		cascadeFiles = append(cascadeFiles, CascadeFile{
+			name:     "eye",
+			filename: config.AppConfig.EyeDetectionXmlFile,
+			drawOptions: DrawOptions{
+				color:          convertColor(config.AppConfig.EyeDetectionColor),
+				thickness:      1,
+				renderAsCircle: true,
+			},
+			detectParams: DetectParams{
+				scale:        1.5,
+				minNeighbors: 5,
+				flags:        0,
+				minScaleX:    0.01,
+				minScaleY:    0.01,
+				maxScaleX:    0.025,
+				maxScaleY:    0.025,
+			},
+		})
+	}
+}
 
 // codecToFloat64 returns a float64 representation of FourCC bytes for use with `gocv.VideoCaptureFOURCC`
 func codecToFloat64(codec string) float64 {
@@ -324,6 +344,7 @@ func safeClose(c io.Closer) {
 }
 
 func SanityCheck() error {
+	SetupCascadeFiles()
 	return RecordVideoToDisk(config.AppConfig.VideoDevice, 1, "/tmp", false)
 }
 
