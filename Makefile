@@ -7,6 +7,18 @@ RUNTIME_IMAGE ?= openvino-runtime
 
 GIT_SHA = $(shell git rev-parse HEAD)
 
+GO_FILES = $(shell find . -type f -name '*.go')
+RES_FILES = $(shell find res/ -type f)
+
+PROXY_ARGS =	--build-arg http_proxy=$(http_proxy) \
+				--build-arg https_proxy=$(https_proxy) \
+				--build-arg no_proxy=$(no_proxy) \
+				--build-arg HTTP_PROXY=$(HTTP_PROXY) \
+				--build-arg HTTPS_PROXY=$(HTTPS_PROXY) \
+				--build-arg NO_PROXY=$(NO_PROXY)
+
+EXTRA_BUILD_ARGS ?=
+
 trap_ctrl_c = trap 'exit 0' INT;
 
 compose = docker-compose
@@ -26,37 +38,27 @@ log = docker-compose logs $1 $2 2>&1
 test =	echo "Go Testing..."; \
 		go test ./... $1
 
-.PHONY: build compile docker iterate iterate-d tail start stop rm deploy kill down fmt ps shell
+.PHONY: build iterate iterate-d tail start stop rm deploy kill down fmt ps app-shell builder-shell runtime-shell delete-all-recordings
 
 default: build
 
-build: compile docker
+build: build/docker
 
-openvino-builder: go.mod Dockerfile.builder
+build/openvino-builder: go.mod Dockerfile.builder
 	docker build \
 		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
-		--build-arg http_proxy=$(http_proxy) \
-		--build-arg https_proxy=$(https_proxy) \
+		$(PROXY_ARGS) \
+		$(EXTRA_BUILD_ARGS) \
 		--build-arg LOCAL_USER=$$(id -u $$(logname)) \
 		-f Dockerfile.builder \
 		--label "git_sha=$(GIT_SHA)" \
 		-t rsp/$(BUILDER_IMAGE):dev \
 		.
+	@mkdir -p $(@D) && touch $@
 
-openvino-runtime: Dockerfile.runtime
-	docker build \
-		--build-arg http_proxy=$(http_proxy) \
-		--build-arg https_proxy=$(https_proxy) \
-		--build-arg LOCAL_USER=$$(id -u $$(logname)) \
-		-f Dockerfile.runtime \
-		--label "git_sha=$(GIT_SHA)" \
-		-t rsp/$(RUNTIME_IMAGE):dev \
-		.
-
-compile: openvino-builder Makefile build.sh
+$(PROJECT_NAME): build/openvino-builder Makefile build.sh $(GO_FILES)
 	docker run \
 		--rm \
-		-it \
 		--name=$(PROJECT_NAME)-builder \
 		-v $(PROJECT_NAME)-cache:/cache \
 		-v $$(pwd):/app \
@@ -67,15 +69,35 @@ compile: openvino-builder Makefile build.sh
 		rsp/$(BUILDER_IMAGE):dev \
 		bash -c '/app/build.sh'
 
-docker: compile openvino-runtime Dockerfile
+build/openvino-runtime: Dockerfile.runtime
+	docker build \
+		$(PROXY_ARGS) \
+		$(EXTRA_BUILD_ARGS) \
+		--build-arg LOCAL_USER=$$(id -u $$(logname)) \
+		-f Dockerfile.runtime \
+		--label "git_sha=$(GIT_SHA)" \
+		-t rsp/$(RUNTIME_IMAGE):dev \
+		.
+	@mkdir -p $(@D) && touch $@
+
+build/docker: build/openvino-runtime $(PROJECT_NAME) entrypoint.sh Dockerfile $(RES_FILES)
 	docker build --rm \
-		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
-		--build-arg http_proxy=$(http_proxy) \
-		--build-arg https_proxy=$(https_proxy) \
+		$(PROXY_ARGS) \
+		$(EXTRA_BUILD_ARGS) \
 		-f Dockerfile \
 		--label "git_sha=$(GIT_SHA)" \
 		-t rsp/$(PROJECT_NAME):dev \
 		.
+	@mkdir -p $(@D) && touch $@
+
+# Helper target which builds the builder and runtime containers in separate processes to speed up build times
+# Note that the & is not a typo. It is singular in order to fork the process, as opposed to && which means 'and'
+# Press Ctrl-C to kill
+prepare:
+	@$(MAKE) --no-print-directory build/openvino-builder & \
+	$(MAKE) --no-print-directory build/openvino-runtime & \
+	trap "kill -- -$$(ps -o pgid= $$$$ | tr -d ' ')" INT; wait
+
 
 delete-all-recordings:
 	sudo find recordings/ -mindepth 1 -delete
@@ -83,14 +105,12 @@ delete-all-recordings:
 iterate:
 	$(compose) down --remove-orphans &
 	$(MAKE) build
-	# make sure it has stopped before we try and start it again
 	$(call wait_for_service, stop, !)
 	$(compose) up --remove-orphans
 
 iterate-d:
 	$(compose) down --remove-orphans &
 	$(MAKE) build
-	# make sure it has stopped before we try and start it again
 	$(call wait_for_service, stop, !)
 	$(compose) up --remove-orphans -d
 	$(MAKE) tail

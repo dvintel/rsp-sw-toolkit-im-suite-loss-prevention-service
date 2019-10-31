@@ -49,3 +49,4 @@ vendor/github.impcloud.net/RSP-Inventory-Suite/utilities/configuration/testData
 go.sum
 
 recordings/
+build/

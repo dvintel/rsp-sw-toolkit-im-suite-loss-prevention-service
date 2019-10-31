@@ -1,21 +1,27 @@
 # Base image
 FROM ubuntu:18.04 as runtime-base
-# Update package list and upgrade existing packages
+# Update package list, upgrade existing packages, and download dependencies
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
-# Download dependencies
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y \
-      gnupg2 \
-      libzmq5 \
-      gstreamer1.0-plugins-base \
-      libavcodec57 \
-      libavformat57 \
-      libcairo2 \
-      libglib2.0 \
-      libgstreamer1.0-0 \
-      libgtk-3.0 \
-      software-properties-common \
-      wget
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        gnupg2 \
+        libzmq5 \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-rtsp \
+        gstreamer1.0-libav \
+        gstreamer1.0-gtk3 \
+        gstreamer1.0-plugins-good \
+        libavcodec57 \
+        libavformat57 \
+        libcairo2 \
+        libglib2.0 \
+        libgstreamer1.0-0 \
+        libgstreamer-opencv1.0-0 \
+        libgstreamer-plugins-good1.0-0 \
+        libgtk-3.0 \
+        libx264-152 \
+        software-properties-common \
+        wget
 
 FROM runtime-base as openvino-runtime
 # Install OpenVINO
@@ -25,6 +31,7 @@ RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCT
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y intel-openvino-runtime-ubuntu18-2019.3.344
 
+# Use this to copy any pre-download OpenVINO models
 #FROM rsp/gocv-openvino-builder:dev as gocv-openvino-builder
 #FROM openvino-runtime as openvino-runtime-models
 #COPY --from=gocv-openvino-builder /opt/intel/openvino/models /opt/intel/openvino/models
@@ -32,23 +39,7 @@ RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCT
 FROM openvino-runtime as final-app-runtime
 # Cleanup
 RUN apt-get update && \
-    apt-get autoremove -y --purge && \
     DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
-    apt-get autoremove -y --purge && \
-    apt-get install -y libx264-152 && \
+    DEBIAN_FRONTEND=noninteractive apt-get autoremove -y --purge && \
     apt-get clean && \
     rm -rf /etc/apt/sources.list.d/*
-
-FROM final-app-runtime
-
-RUN apt-get update && \
-    apt-get install -y \
-      gstreamer1.0-rtsp \
-      gstreamer1.0-libav \
-      gstreamer1.0-gtk3 \
-      gstreamer1.0-plugins-good \
-      libgstreamer-opencv1.0-0 \
-      libgstreamer-plugins-good1.0-0
-
-RUN apt-get update && \
-    apt-get install -y \

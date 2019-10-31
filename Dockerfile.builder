@@ -1,10 +1,9 @@
 # Base image
 FROM ubuntu:18.04 as builder-base
-# Update package list and upgrade existing packages
+# Update package list, upgrade existing packages, and download dependencies
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
-# Download dependencies
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
         build-essential \
         cmake \
         git \
@@ -34,12 +33,14 @@ RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCT
     apt-key add /tmp/key.pub && \
     echo "deb https://apt.repos.intel.com/openvino/2019/ all main" > /etc/apt/sources.list.d/intel-openvino-2019.list && \
     apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y intel-openvino-dev-ubuntu18-2019.3.344 && \
-    pip3 install -r /opt/intel/openvino/python/python3.6/requirements.txt && \
-    cd /opt/intel/openvino/deployment_tools/inference_engine/samples && \
-    ./build_samples.sh
+    DEBIAN_FRONTEND=noninteractive apt-get install -y intel-openvino-dev-ubuntu18-2019.3.344
 
-#    pip3 install -r /opt/intel/openvino/deployment_tools/open_model_zoo/tools/downloader/requirements.in && \
+#RUN pip3 install -r /opt/intel/openvino/python/python3.6/requirements.txt && \
+#    cd /opt/intel/openvino/deployment_tools/inference_engine/samples && \
+#    ./build_samples.sh
+
+# Use this to pre-download OpenVINO models
+#RUN pip3 install -r /opt/intel/openvino/deployment_tools/open_model_zoo/tools/downloader/requirements.in && \
 #    mkdir -p /opt/intel/openvino/models && \
 #    /opt/intel/openvino/deployment_tools/open_model_zoo/tools/downloader/downloader.py --all -o /opt/intel/openvino/models
 
@@ -63,6 +64,3 @@ COPY go.mod go.mod
 ARG LOCAL_USER
 RUN (go mod download && chown ${LOCAL_USER}:${LOCAL_USER} go.mod go.sum) || \
     (printf "\n\n\e[31mThere was an error downloading go module dependencies.\nPlease make sure you set \e[1mGIT_TOKEN\e[22;24m to your git auth token!\e[0m\n\n"; exit 1)
-
-FROM final-app-builder
-# Do nothing
