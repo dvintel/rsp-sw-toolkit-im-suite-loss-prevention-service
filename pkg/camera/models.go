@@ -21,12 +21,10 @@ package camera
 
 import (
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"gocv.io/x/gocv"
 	"image"
 	"image/color"
 	"path/filepath"
-	"sync"
 )
 
 type DebugStats struct {
@@ -93,46 +91,29 @@ type CascadeFile struct {
 	filename     string
 	drawOptions  DrawOptions
 	detectParams DetectParams
+}
+
+type Cascade struct {
+	name         string
+	found        int
+	written      int
+	drawOptions  DrawOptions
+	detectParams DetectParams
 	classifier   *gocv.CascadeClassifier
 }
 
-type CascadeQueue struct {
-	cascadeFile CascadeFile
-	found       int
-	buffer      chan *FrameToken
-}
-
-func (cascadeFile CascadeFile) CreateQueue(bufferSize int) *CascadeQueue {
-	return &CascadeQueue{
-		cascadeFile: cascadeFile,
-		buffer:      make(chan *FrameToken, bufferSize),
+func (cascadeFile CascadeFile) AsNewCascade(classifier *gocv.CascadeClassifier) Cascade {
+	return Cascade{
+		name:         cascadeFile.name,
+		detectParams: cascadeFile.detectParams,
+		drawOptions:  cascadeFile.drawOptions,
+		classifier:   classifier,
 	}
-}
-
-type FrameToken struct {
-	startTS      int64
-	readTS       int64
-	processedTS  int64
-	frame        gocv.Mat
-	procFrame    gocv.Mat
-	waitGroup    sync.WaitGroup
-	overlays     []FrameOverlay
-	overlayMutex sync.Mutex
-	index        int
 }
 
 type FrameOverlay struct {
 	rect        image.Rectangle
 	drawOptions DrawOptions
-}
-
-func (recorder *Recorder) NewFrameToken(index int) *FrameToken {
-	return &FrameToken{
-		startTS:   helper.UnixMilliNow(),
-		frame:     gocv.NewMat(),
-		procFrame: gocv.NewMat(),
-		index:     index,
-	}
 }
 
 type Recorder struct {
@@ -145,37 +126,32 @@ type Recorder struct {
 	width          int
 	height         int
 	liveView       bool
-	waitGroup      sync.WaitGroup
-	done           chan bool
 
-	webcam        *gocv.VideoCapture
-	cascadeQueues []*CascadeQueue
-	writer        *gocv.VideoWriter
-	window        *gocv.Window
+	webcam *gocv.VideoCapture
+	writer *gocv.VideoWriter
+	window *gocv.Window
 	//net	       gocv.Net
 
-	writeBuffer chan *FrameToken
-	waitBuffer  chan *FrameToken
-	//vinoBuffer  chan *FrameToken
-	closeBuffer chan *FrameToken
+	frame        gocv.Mat
+	processFrame gocv.Mat
+
+	overlays []FrameOverlay
+	cascades []Cascade
 }
 
-func NewRecorder(videoDevice string, outputFolder string) *Recorder {
+func NewRecorder(videoDevice string, outputFolder string, liveView bool) *Recorder {
 	recorder := &Recorder{
 		videoDevice:    videoDevice,
 		outputFolder:   outputFolder,
 		outputFilename: filepath.Join(outputFolder, "video"+config.AppConfig.VideoOutputExtension),
 		width:          config.AppConfig.VideoResolutionWidth,
 		height:         config.AppConfig.VideoResolutionHeight,
-		liveView:       config.AppConfig.LiveView,
+		liveView:       liveView,
 		fps:            float64(config.AppConfig.VideoOutputFps),
 		codec:          config.AppConfig.VideoOutputCodec,
 		window:         gocv.NewWindow(config.AppConfig.ServiceName + " - OpenVINO"),
-
-		writeBuffer: make(chan *FrameToken, 25),
-		waitBuffer:  make(chan *FrameToken, config.AppConfig.VideoOutputFps*config.AppConfig.RecordingDuration),
-		closeBuffer: make(chan *FrameToken, config.AppConfig.VideoOutputFps*config.AppConfig.RecordingDuration),
-		done:        make(chan bool),
+		frame:          gocv.NewMat(),
+		processFrame:   gocv.NewMat(),
 	}
 
 	return recorder

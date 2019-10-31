@@ -30,7 +30,6 @@ import (
 	"image"
 	"image/color"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -59,7 +58,7 @@ var (
 	white  = color.RGBA{255, 255, 255, 0}
 	purple = color.RGBA{255, 0, 255, 0}
 
-	debugStatsColor = white
+	debugStatsColor = green
 
 	cascadeFiles = []CascadeFile{
 		{
@@ -207,8 +206,7 @@ func (recorder *Recorder) Open() error {
 			continue
 		}
 
-		cascadeFile.classifier = &classifier
-		recorder.cascadeQueues = append(recorder.cascadeQueues, cascadeFile.CreateQueue(100))
+		recorder.cascades = append(recorder.cascades, cascadeFile.AsNewCascade(&classifier))
 	}
 
 	//caffeModel := "/opt/intel/openvino/models/intel/face-detection-retail-0004/INT8/face-detection-retail-0004.bin"
@@ -234,244 +232,26 @@ func (recorder *Recorder) Open() error {
 	return nil
 }
 
-func (recorder *Recorder) Begin() time.Time {
-	for _, cascadeQueue := range recorder.cascadeQueues {
-		go recorder.ProcessClassifierQueue(recorder.done, cascadeQueue)
-	}
-
-	//go recorder.ProcessOpenVINOQueue(recorder.done)
-
-	if recorder.outputFolder != "" {
-		go recorder.ProcessWriteQueue(recorder.done)
-	}
-
-	go recorder.ProcessWaitQueue(recorder.done)
-	go recorder.ProcessCloseQueue(recorder.done)
-
-	if recorder.liveView {
-		//recorder.window.ResizeWindow(1920, 1080)
-		recorder.window.ResizeWindow(recorder.width, recorder.height)
-
-		if config.AppConfig.FullscreenView {
-			recorder.window.SetWindowProperty(gocv.WindowPropertyFullscreen, gocv.WindowFullscreen)
-		}
-	}
-
-	return time.Now()
-}
-
-func (recorder *Recorder) Wait() time.Time {
-	logrus.Debug("Wait()")
-	recorder.waitGroup.Wait()
-	logrus.Debug("Wait() completed")
-	return time.Now()
-}
-
-func (recorder *Recorder) ProcessWaitQueue(done chan bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Errorf("recovered from panic: %+v", r)
-		}
-	}()
-
-	// for debug stats
-	var read, process DebugStats
-	// pre-compute the x location of the avg stats
-	x2 := gocv.GetTextSize("Avg Process: 99.9", font, fontScale, fontThickness).X
-	x3 := gocv.GetTextSize("Min Process: 99", font, fontScale, fontThickness).X + x2 + 60
-	yPadding := 35
-	yStart := 0
-	logrus.Debug("ProcessWaitQueue() goroutine started")
-	for {
-		select {
-		case <-done:
-			logrus.Debug("ProcessWaitQueue() goroutine completed")
-			close(recorder.waitBuffer)
-			return
-
-		case frameToken := <-recorder.waitBuffer:
-			frameToken.waitGroup.Wait()
-			frameToken.processedTS = helper.UnixMilliNow()
-
-			if recorder.liveView {
-				if config.AppConfig.ShowVideoDebugStats {
-					read.AddValue(float64(frameToken.readTS - frameToken.startTS))
-					process.AddValue(float64(frameToken.processedTS - frameToken.readTS))
-
-					// Instant
-					gocv.PutText(&frameToken.frame, "   Read: "+strconv.FormatInt(int64(read.current), 10),
-						image.Point{textPadding, yStart + (yPadding * 1)}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "Process: "+strconv.FormatInt(int64(process.current), 10),
-						image.Point{textPadding, yStart + (yPadding * 2)}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "ReadFPS: "+strconv.FormatFloat(read.FPS(), 'f', 1, 64),
-						image.Point{textPadding, yStart + (yPadding * 3)}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "ProcFPS: "+strconv.FormatFloat(process.FPS(), 'f', 1, 64),
-						image.Point{textPadding, yStart + (yPadding * 4)}, font, fontScale, debugStatsColor, fontThickness)
-
-					// Min / Max
-					gocv.PutText(&frameToken.frame, "   Min Read: "+strconv.FormatInt(int64(read.min), 10),
-						image.Point{x2, yStart + (yPadding * 1)}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "   Max Read: "+strconv.FormatInt(int64(read.max), 10),
-						image.Point{x2, yStart + (yPadding * 2)}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "Min Process: "+strconv.FormatInt(int64(process.min), 10),
-						image.Point{x2, yStart + (yPadding * 3)}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "Max Process: "+strconv.FormatInt(int64(process.max), 10),
-						image.Point{x2, yStart + (yPadding * 4)}, font, fontScale, debugStatsColor, fontThickness)
-
-					// Average
-					gocv.PutText(&frameToken.frame, "   Avg Read: "+strconv.FormatFloat(read.Average(), 'f', 1, 64),
-						image.Point{x3, yStart + (yPadding * 1)}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "Avg Process: "+strconv.FormatFloat(process.Average(), 'f', 1, 64),
-						image.Point{x3, yStart + (yPadding * 2)}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "Avg ReadFPS: "+strconv.FormatFloat(read.AverageFPS(), 'f', 1, 64),
-						image.Point{x3, yStart + (yPadding * 3)}, font, fontScale, debugStatsColor, fontThickness)
-					gocv.PutText(&frameToken.frame, "Avg ProcFPS: "+strconv.FormatFloat(process.AverageFPS(), 'f', 1, 64),
-						image.Point{x3, yStart + (yPadding * 4)}, font, fontScale, debugStatsColor, fontThickness)
-
-				}
-
-				frameToken.overlayMutex.Lock()
-				for _, overlay := range frameToken.overlays {
-					if overlay.drawOptions.renderAsCircle {
-						radius := (overlay.rect.Max.X - overlay.rect.Min.X) / 2
-						gocv.Circle(&frameToken.frame, image.Point{overlay.rect.Max.X - radius, overlay.rect.Max.Y - radius}, radius, overlay.drawOptions.color, overlay.drawOptions.thickness)
-					} else {
-						gocv.Rectangle(&frameToken.frame, overlay.rect, overlay.drawOptions.color, overlay.drawOptions.thickness)
-					}
-					gocv.PutText(&frameToken.frame, overlay.drawOptions.annotation, image.Point{overlay.rect.Min.X, overlay.rect.Min.Y - 10}, font, 1, overlay.drawOptions.color, fontThickness)
-				}
-				frameToken.overlayMutex.Unlock()
-
-				recorder.window.IMShow(frameToken.frame)
-				key := recorder.window.WaitKey(1)
-
-				// ESC, Q, q
-				if key == 27 || key == 'q' || key == 'Q' {
-					logrus.Debugf("stopping video live view")
-					recorder.liveView = false
-					safeClose(recorder.window)
-					break
-				}
-			}
-
-			recorder.waitGroup.Add(1)
-			recorder.closeBuffer <- frameToken
-
-			recorder.waitGroup.Done()
-		}
-	}
-}
-
-func (recorder *Recorder) ProcessWriteQueue(done chan bool) error {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Errorf("recovered from panic: %+v", r)
-		}
-	}()
-
-	var err error
-	recorder.writer, err = gocv.VideoWriterFile(recorder.outputFilename, recorder.codec, recorder.fps, recorder.width, recorder.height, true)
-	if err != nil {
-		return errors.Wrapf(err, "error opening video writer device: %+v", recorder.outputFilename)
-	}
-
-	logrus.Debug("ProcessWriteQueue() goroutine started")
-	for {
-		select {
-		case <-done:
-			logrus.Debug("ProcessWriteQueue() goroutine completed")
-			close(recorder.writeBuffer)
-			return nil
-
-		case token := <-recorder.writeBuffer:
-			if err := recorder.writer.Write(token.frame); err != nil {
-				logrus.Errorf("error occurred while writing video to disk: %v", err)
-			}
-
-			switch token.index {
-			case 0:
-				token.writeFrame(filepath.Join(recorder.outputFolder, "frame.first.jpg"))
-				token.writeThumb(filepath.Join(recorder.outputFolder, "thumb.jpg"))
-			case recorder.frameCount / 2:
-				token.writeFrame(filepath.Join(recorder.outputFolder, "frame.middle.jpg"))
-			case recorder.frameCount - 1:
-				token.writeFrame(filepath.Join(recorder.outputFolder, "frame.last.jpg"))
-			default:
-				break
-			}
-
-			token.waitGroup.Done()
-		}
-	}
-}
-
-func (token *FrameToken) writeThumb(filename string) {
+func (recorder *Recorder) writeThumb(filename string) {
 	logrus.Debugf("writing thumbnail image: %s", filename)
 	thumb := gocv.NewMat()
 	// compute the width based on the aspect ratio
 	width := int(float64(config.AppConfig.ThumbnailHeight) * (float64(config.AppConfig.VideoResolutionWidth) / float64(config.AppConfig.VideoResolutionHeight)))
-	gocv.Resize(token.frame, &thumb, image.Point{width, config.AppConfig.ThumbnailHeight}, 0, 0, gocv.InterpolationLinear)
+	gocv.Resize(recorder.frame, &thumb, image.Point{width, config.AppConfig.ThumbnailHeight}, 0, 0, gocv.InterpolationLinear)
 	go func() {
-		gocv.IMWrite(filename, thumb)
+		gocv.IMWrite(filepath.Join(recorder.outputFolder, filename), thumb)
 		safeClose(&thumb)
 	}()
 }
 
-func (token *FrameToken) writeFrame(filename string) {
+func (recorder *Recorder) writeFrame(filename string) {
 	logrus.Debugf("writing image: %s", filename)
-	gocv.IMWrite(filename, token.frame)
+	gocv.IMWrite(filepath.Join(recorder.outputFolder, filename), recorder.frame)
 }
 
-func (token *FrameToken) writeFrameRegion(filename string, region image.Rectangle) {
+func (recorder *Recorder) writeFrameRegion(filename string, region image.Rectangle) {
 	logrus.Debugf("writing image region: %s (%+v)", filename, region)
-	gocv.IMWrite(filename, token.frame.Region(region))
-}
-
-func (recorder *Recorder) ProcessClassifierQueue(done chan bool, cascadeQueue *CascadeQueue) {
-	cascade := cascadeQueue.cascadeFile
-	params := cascade.detectParams
-
-	logrus.Debugf("ProcessClassifierQueue(classifier: %s) goroutine started", cascade.name)
-	for {
-		select {
-		case <-done:
-			logrus.Debugf("ProcessClassifierQueue(classifier: %s) goroutine completed", cascade.name)
-			close(cascadeQueue.buffer)
-			return
-
-		case token := <-cascadeQueue.buffer:
-			var rects []image.Rectangle
-			if reflect.DeepEqual(params, DetectParams{}) {
-				rects = cascade.classifier.DetectMultiScale(token.procFrame)
-			} else {
-				rects = cascade.classifier.DetectMultiScaleWithParams(token.procFrame, params.scale, params.minNeighbors, params.flags,
-					image.Point{X: int(float64(recorder.width) * params.minScaleX), Y: int(float64(recorder.height) * params.minScaleY)},
-					image.Point{X: int(float64(recorder.width) * params.maxScaleX), Y: int(float64(recorder.height) * params.maxScaleY)})
-			}
-
-			if len(rects) > 0 {
-				logrus.Debugf("Detected %v %s(s)", len(rects), cascade.name)
-
-				if config.AppConfig.SaveCascadeDetectionsToDisk {
-					if cascadeQueue.found < len(rects) {
-						// todo: should this not overwrite existing rects and just add, so if 1 is found
-						// 		 and then 2 is found later on, we have a total of 3, not just the most recent 2?
-						cascadeQueue.found = len(rects)
-						for i, rect := range rects {
-							token.writeFrameRegion(filepath.Join(recorder.outputFolder, fmt.Sprintf("%s.%d.jpg", cascade.name, i)), transformProcessRect(rect))
-						}
-					}
-				}
-
-				token.overlayMutex.Lock()
-				for _, rect := range rects {
-					token.overlays = append(token.overlays, FrameOverlay{rect: transformProcessRect(rect), drawOptions: cascade.drawOptions})
-				}
-				token.overlayMutex.Unlock()
-			}
-			token.waitGroup.Done()
-		}
-	}
+	gocv.IMWrite(filepath.Join(recorder.outputFolder, filename), recorder.frame.Region(region))
 }
 
 // transformProcessRect takes a smaller scaled rectangle produced by a processing function and transforms it
@@ -489,54 +269,6 @@ func transformProcessRect(rect image.Rectangle) image.Rectangle {
 	}
 }
 
-//func (recorder *Recorder) ProcessOpenVINOQueue(done chan bool) {
-//	defer func() {
-//		if r := recover(); r != nil {
-//			logrus.Errorf("recovered from panic: %+v", r)
-//		}
-//	}()
-//
-//	logrus.Debug("ProcessOpenVINOQueue() goroutine started")
-//	for {
-//		select {
-//		case <-done:
-//			logrus.Debug("ProcessOpenVINOQueue() goroutine completed")
-//			close(recorder.vinoBuffer)
-//			return
-//
-//		case token := <-recorder.vinoBuffer:
-//			//blob := gocv.BlobFromImage(token.frame, 1.0, image.Point{recorder.width, recorder.height}, gocv.Scalar{}, true, false)
-//			//recorder.net.SetInput(blob, "vino")
-//			//prob := recorder.net.Forward("vino")
-//			////minVal, maxVal, minLoc, maxLoc := gocv.MinMaxLoc(prob)
-//
-//			token.waitGroup.Done()
-//		}
-//	}
-//}
-
-func (recorder *Recorder) ProcessCloseQueue(done chan bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Errorf("recovered from panic: %+v", r)
-		}
-	}()
-
-	logrus.Debug("ProcessCloseQueue() goroutine started")
-	for {
-		select {
-		case <-done:
-			logrus.Debug("ProcessCloseQueue() goroutine completed")
-			close(recorder.closeBuffer)
-
-		case token := <-recorder.closeBuffer:
-			go safeClose(&token.frame)
-			go safeClose(&token.procFrame)
-			recorder.waitGroup.Done()
-		}
-	}
-}
-
 func (recorder *Recorder) Close() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -546,20 +278,18 @@ func (recorder *Recorder) Close() {
 
 	logrus.Debug("Close()")
 
-	// this will signal to stop the background tasks
-	recorder.done <- true
+	safeClose(&recorder.frame)
+	safeClose(&recorder.processFrame)
 
 	safeClose(recorder.webcam)
 	safeClose(recorder.writer)
-	for _, cascadeQueue := range recorder.cascadeQueues {
-		safeClose(cascadeQueue.cascadeFile.classifier)
+	for _, cascade := range recorder.cascades {
+		safeClose(cascade.classifier)
 	}
 	//safeClose(&recorder.net)
 	if recorder.liveView {
 		safeClose(recorder.window)
 	}
-
-	close(recorder.done)
 
 	logrus.Debug("Close() completed")
 }
@@ -585,32 +315,10 @@ func safeClose(c io.Closer) {
 }
 
 func SanityCheck() error {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Errorf("recovered from panic: %+v", r)
-		}
-	}()
-
-	if !cameraSemaphone.TryAcquire(1) {
-		return fmt.Errorf("unable to acquire camera lock")
-	}
-	defer cameraSemaphone.Release(1)
-
-	recorder := NewRecorder(config.AppConfig.VideoDevice, "/tmp")
-	recorder.liveView = false
-	if err := recorder.Open(); err != nil {
-		logrus.Errorf("error: %v", err)
-		return err
-	}
-	recorder.Begin()
-	// set the writer to nil to prevent calling close on it, as we do not open it
-	recorder.writer = nil
-	recorder.Close()
-
-	return nil
+	return RecordVideoToDisk(config.AppConfig.VideoDevice, 1, "/tmp", false)
 }
 
-func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string) error {
+func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string, liveView bool) error {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("recovered from panic: %+v", r)
@@ -625,7 +333,7 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string) err
 	}
 	defer cameraSemaphone.Release(1)
 
-	recorder := NewRecorder(videoDevice, outputFolder)
+	recorder := NewRecorder(videoDevice, outputFolder, liveView)
 	if err := recorder.Open(); err != nil {
 		logrus.Errorf("error: %v", err)
 		return err
@@ -633,43 +341,167 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string) err
 
 	defer recorder.Close()
 
-	begin := recorder.Begin()
+	var err error
+	recorder.writer, err = gocv.VideoWriterFile(recorder.outputFilename, recorder.codec, recorder.fps, recorder.width, recorder.height, true)
+	if err != nil {
+		return errors.Wrapf(err, "error opening video writer device: %+v", recorder.outputFilename)
+	}
+
+	if recorder.liveView {
+		//recorder.window.ResizeWindow(1920, 1080)
+		recorder.window.ResizeWindow(recorder.width, recorder.height)
+
+		if config.AppConfig.FullscreenView {
+			recorder.window.SetWindowProperty(gocv.WindowPropertyFullscreen, gocv.WindowFullscreen)
+		}
+	}
+	begin := time.Now()
+
 	recorder.frameCount = int(recorder.fps * float64(seconds))
+	var rects []image.Rectangle
+	// for debug stats
+	var read, process, total DebugStats
+	var prevMillis, currentMills, startTS, readTS, processedTS int64
+	// pre-compute the x location of the avg stats
+	x2 := gocv.GetTextSize("Avg Process: 99.9", font, fontScale, fontThickness).X
+	x3 := gocv.GetTextSize("Min Process: 99", font, fontScale, fontThickness).X + x2 + 60
+	yPadding := 35
+	yStart := 0
 
 	for i := 0; i < recorder.frameCount; i++ {
 
-		token := recorder.NewFrameToken(i)
-		if ok := recorder.webcam.Read(&token.frame); !ok {
+		startTS = helper.UnixMilliNow()
+
+		if ok := recorder.webcam.Read(&recorder.frame); !ok {
 			return fmt.Errorf("unable to read from webcam. device closed: %+v", recorder.videoDevice)
 		}
-		token.readTS = helper.UnixMilliNow()
+		readTS = helper.UnixMilliNow()
 
-		if token.frame.Empty() {
+		if recorder.frame.Empty() {
 			logrus.Debug("skipping empty frame from webcam")
 			continue
 		}
 
-		// Add 1 for for writeBuffer and 1 PER classifierQueue
-		token.waitGroup.Add(1)
-		recorder.writeBuffer <- token
-
-		// Resize smaller for use with the cascade classifiers
-		gocv.Resize(token.frame, &token.procFrame, image.Point{}, 1.0/float64(config.AppConfig.ImageProcessScale), 1.0/float64(config.AppConfig.ImageProcessScale), gocv.InterpolationLinear)
-
-		for _, cascadeQueue := range recorder.cascadeQueues {
-			token.waitGroup.Add(1)
-			cascadeQueue.buffer <- token
+		if err := recorder.writer.Write(recorder.frame); err != nil {
+			logrus.Errorf("error occurred while writing video to disk: %v", err)
 		}
 
-		// Add 1 for waitBuffer
-		recorder.waitGroup.Add(1)
-		recorder.waitBuffer <- token
+		switch i {
+		case 0:
+			recorder.writeFrame("frame.first.jpg")
+			recorder.writeThumb("thumb.jpg")
+		case recorder.frameCount / 2:
+			recorder.writeFrame("frame.middle.jpg")
+		case recorder.frameCount - 1:
+			recorder.writeFrame("frame.last.jpg")
+		default:
+			break
+		}
+
+		if len(recorder.cascades) > 0 {
+			// Resize smaller for use with the cascade classifiers
+			gocv.Resize(recorder.frame, &recorder.processFrame, image.Point{}, 1.0/float64(config.AppConfig.ImageProcessScale), 1.0/float64(config.AppConfig.ImageProcessScale), gocv.InterpolationLinear)
+
+			recorder.overlays = nil
+			for _, cascade := range recorder.cascades {
+				params := cascade.detectParams
+
+				if reflect.DeepEqual(params, DetectParams{}) {
+					rects = cascade.classifier.DetectMultiScale(recorder.processFrame)
+				} else {
+					rects = cascade.classifier.DetectMultiScaleWithParams(recorder.processFrame, params.scale, params.minNeighbors, params.flags,
+						image.Point{X: int(float64(recorder.width) * params.minScaleX), Y: int(float64(recorder.height) * params.minScaleY)},
+						image.Point{X: int(float64(recorder.width) * params.maxScaleX), Y: int(float64(recorder.height) * params.maxScaleY)})
+				}
+
+				if len(rects) > 0 {
+					logrus.Debugf("Detected %v %s(s)", len(rects), cascade.name)
+
+					if config.AppConfig.SaveCascadeDetectionsToDisk {
+						if cascade.found < len(rects) {
+							// todo: should this not overwrite existing rects and just add, so if 1 is found
+							// 		 and then 2 is found later on, we have a total of 3, not just the most recent 2?
+							cascade.found = len(rects)
+							for i, rect := range rects {
+								recorder.writeFrameRegion(filepath.Join(recorder.outputFolder, fmt.Sprintf("%s.%d.jpg", cascade.name, i+cascade.written)), transformProcessRect(rect))
+							}
+							cascade.written += cascade.found
+						}
+					}
+
+					if liveView {
+						for _, rect := range rects {
+							recorder.overlays = append(recorder.overlays, FrameOverlay{rect: transformProcessRect(rect), drawOptions: cascade.drawOptions})
+						}
+					}
+				}
+			}
+		}
+
+		processedTS = helper.UnixMilliNow()
+
+		if recorder.liveView {
+			if config.AppConfig.ShowVideoDebugStats {
+				read.AddValue(float64(readTS - startTS))
+				process.AddValue(float64(processedTS - readTS))
+				currentMills = helper.UnixMilliNow()
+				if prevMillis != 0 {
+					total.AddValue(float64(currentMills - prevMillis))
+				}
+				prevMillis = currentMills
+
+				// Instant
+				gocv.PutText(&recorder.frame, "   Read: "+strconv.FormatInt(int64(read.current), 10),
+					image.Point{textPadding, yStart + (yPadding * 1)}, font, fontScale, debugStatsColor, fontThickness)
+				gocv.PutText(&recorder.frame, "Process: "+strconv.FormatInt(int64(process.current), 10),
+					image.Point{textPadding, yStart + (yPadding * 2)}, font, fontScale, debugStatsColor, fontThickness)
+				gocv.PutText(&recorder.frame, "    FPS: "+strconv.FormatFloat(total.FPS(), 'f', 1, 64),
+					image.Point{textPadding, yStart + (yPadding * 3)}, font, fontScale, debugStatsColor, fontThickness)
+
+				// Min / Max
+				gocv.PutText(&recorder.frame, "   Min Read: "+strconv.FormatInt(int64(read.min), 10),
+					image.Point{x2, yStart + (yPadding * 1)}, font, fontScale, debugStatsColor, fontThickness)
+				gocv.PutText(&recorder.frame, "   Max Read: "+strconv.FormatInt(int64(read.max), 10),
+					image.Point{x2, yStart + (yPadding * 2)}, font, fontScale, debugStatsColor, fontThickness)
+				gocv.PutText(&recorder.frame, "Min Process: "+strconv.FormatInt(int64(process.min), 10),
+					image.Point{x2, yStart + (yPadding * 3)}, font, fontScale, debugStatsColor, fontThickness)
+				gocv.PutText(&recorder.frame, "Max Process: "+strconv.FormatInt(int64(process.max), 10),
+					image.Point{x2, yStart + (yPadding * 4)}, font, fontScale, debugStatsColor, fontThickness)
+
+				// Average
+				gocv.PutText(&recorder.frame, "   Avg Read: "+strconv.FormatFloat(read.Average(), 'f', 1, 64),
+					image.Point{x3, yStart + (yPadding * 1)}, font, fontScale, debugStatsColor, fontThickness)
+				gocv.PutText(&recorder.frame, "Avg Process: "+strconv.FormatFloat(process.Average(), 'f', 1, 64),
+					image.Point{x3, yStart + (yPadding * 2)}, font, fontScale, debugStatsColor, fontThickness)
+				gocv.PutText(&recorder.frame, "    Avg FPS: "+strconv.FormatFloat(total.AverageFPS(), 'f', 1, 64),
+					image.Point{x3, yStart + (yPadding * 3)}, font, fontScale, debugStatsColor, fontThickness)
+
+			}
+
+			for _, overlay := range recorder.overlays {
+				if overlay.drawOptions.renderAsCircle {
+					radius := (overlay.rect.Max.X - overlay.rect.Min.X) / 2
+					gocv.Circle(&recorder.frame, image.Point{overlay.rect.Max.X - radius, overlay.rect.Max.Y - radius}, radius, overlay.drawOptions.color, overlay.drawOptions.thickness)
+				} else {
+					gocv.Rectangle(&recorder.frame, overlay.rect, overlay.drawOptions.color, overlay.drawOptions.thickness)
+				}
+				gocv.PutText(&recorder.frame, overlay.drawOptions.annotation, image.Point{overlay.rect.Min.X, overlay.rect.Min.Y - 10}, font, 1, overlay.drawOptions.color, fontThickness)
+			}
+
+			recorder.window.IMShow(recorder.frame)
+			key := recorder.window.WaitKey(1)
+
+			// ESC, Q, q
+			if key == 27 || key == 'q' || key == 'Q' {
+				logrus.Debugf("stopping video live view")
+				recorder.liveView = false
+				safeClose(recorder.window)
+				break
+			}
+		}
 	}
 
-	end := recorder.Wait()
-	logrus.Debugf("recording took %v", end.Sub(begin))
-
-	logrus.Infof("Video url: %s%s", config.AppConfig.VideoUrlBase, url.QueryEscape(recorder.outputFilename))
+	logrus.Debugf("recording took %v", time.Now().Sub(begin))
 
 	return nil
 }
