@@ -45,7 +45,7 @@ type (
 		EPCFilter, SKUFilter                                        string
 		EPCFilterRegex, SKUFilterRegex                              *regexp.Regexp
 		ImageProcessScale                                           int
-		SaveCascadeDetectionsToDisk                                 bool
+		SaveObjectDetectionsToDisk                                  bool
 		ThumbnailHeight                                             int
 		EnableCORS                                                  bool
 		CORSOrigin                                                  string
@@ -92,7 +92,7 @@ func InitConfig() error {
 	AppConfig.LiveView = getOrDefaultBool(config, "liveView", true)
 	AppConfig.FullscreenView = getOrDefaultBool(config, "fullscreenView", false)
 	AppConfig.ShowVideoDebugStats = getOrDefaultBool(config, "showVideoDebugStats", false)
-	AppConfig.SaveCascadeDetectionsToDisk = getOrDefaultBool(config, "saveCascadeDetectionsToDisk", true)
+	AppConfig.SaveObjectDetectionsToDisk = getOrDefaultBool(config, "saveObjectDetectionsToDisk", true)
 	AppConfig.RecordingDuration = getOrDefaultInt(config, "recordingDuration", 15)
 	AppConfig.VideoResolutionWidth = getOrDefaultInt(config, "videoResolutionWidth", 1280)
 	AppConfig.VideoResolutionHeight = getOrDefaultInt(config, "videoResolutionHeight", 720)

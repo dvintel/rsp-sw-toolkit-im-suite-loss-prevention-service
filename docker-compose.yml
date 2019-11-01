@@ -25,15 +25,20 @@ services:
       - "9092:8080"
     environment:
       serviceName: "Loss Prevention Example App"
-      port: "8080"
-      DISPLAY: unix:0
       loggingLevel: "debug"
+      port: "8080"
+      enableCORS: "true"
+      corsOrigin: "*"
+
       # NOTE: Point this to the nginx container port
       videoUrlBase: "http://localhost:9091/recordings"
+
       liveView: "true"
       fullscreenView: "false"
       showVideoDebugStats: "true"
-      saveCascadeDetectionsToDisk: "true"
+      # Note: If not using live view remove this
+      DISPLAY: unix:0
+
       videoCaptureFOURCC: "MJPG"
       recordingDuration: 15
       videoResolutionWidth: 1280
@@ -42,35 +47,42 @@ services:
       videoOutputFps: 25
       videoOutputCodec: "avc1"
       videoOutputExtension: ".mp4"
-      enableCORS: "true"
-      corsOrigin: "*"
 
-      # NOTE: These are the various OpenCV detection algorithms you can enable
+      saveObjectDetectionsToDisk: "true"
+      # Below are the various OpenCV detection algorithms you can enable
+      #     enableXXXDetection: enable the real time detection of specified feature
+      #    xxxDetectionXmlFile: (advanced option) specify the cascade xml file to be used. Available options can be found in `res/data/haarcascades`
+      # xxxDetectionAnnotation: the text written above the detected object. Set to "" to not display any text
+      #      xxxDetectionColor: Specify the color used to draw boxes around the detected object. Format is a hex value (do not use quotations) in the format of 0xRRGGBB where RR GG and BB are 2 hex digit values of red, green and blue respectively.
+
+      # Face Detection
       enableFaceDetection: "true"
-      enableProfileFaceDetection: "true"
-      enableUpperBodyDetection: "true"
-      enableFullBodyDetection: "true"
-      # WARNING: Eye detection should probably be turned off as it is slow and doesnt provide much usefulness
-      enableEyeDetection: "false"
-
-      # NOTE: These are the text written above the detected object. Set to "" to not display any text
-      faceDetectionAnnotation: "Bacon Thief!"
-      profileFaceDetectionAnnotation: "Employee"
-      upperBodyDetectionAnnotation: "Employee"
-      fullBodyDetectionAnnotation: "Bacon Thief!"
-      eyeDetectionAnnotation: ""
-
-      # NOTE: [Advanced Option] These are the cascade xml files used to describe the various. Options can be found in `res/data/haarcascades`
       faceDetectionXmlFile: "haarcascade_frontalface_default.xml"
-      profileFaceDetectionXmlFile: "haarcascade_profileface.xml"
-      upperBodyDetectionXmlFile: "haarcascade_upperbody.xml"
-      fullBodyDetectionXmlFile: "haarcascade_fullbody.xml"
-      eyeDetectionXmlFile: "haarcascade_eye.xml"
-
+      faceDetectionAnnotation: "Bacon Thief!"
       faceDetectionColor: 0xff0000
+
+      # Profile Face Detection
+      enableProfileFaceDetection: "true"
+      profileFaceDetectionXmlFile: "haarcascade_profileface.xml"
+      profileFaceDetectionAnnotation: "Employee"
       profileFaceDetectionColor: 0x0000ff
+
+      # Upper Body Detection
+      enableUpperBodyDetection: "true"
+      upperBodyDetectionXmlFile: "haarcascade_upperbody.xml"
+      upperBodyDetectionAnnotation: "Employee"
       upperBodyDetectionColor: 0xffffff
+
+      # Full Body Detection
+      enableFullBodyDetection: "true"
+      fullBodyDetectionXmlFile: "haarcascade_fullbody.xml"
+      fullBodyDetectionAnnotation: "Bacon Thief!"
       fullBodyDetectionColor: 0xffff00
+
+      # Eye Detection (Warning: should probably be turned off as it is slow and doesnt provide much usefulness)
+      enableEyeDetection: "false"
+      eyeDetectionXmlFile: "haarcascade_eye.xml"
+      eyeDetectionAnnotation: ""
       eyeDetectionColor: 0x0000ff
 
       # NOTE: If using a usb camera, make sure this number matches the one in the `devices` field below
@@ -80,9 +92,11 @@ services:
       epcFilter: "*"
 #      epcFilter: "3035*72[CB][0-6EF]"
       skuFilter: "*"
+
     devices:
       # NOTE: If using a usb camera, make sure to map the right one here
       - /dev/video0:/dev/video0
+
     volumes:
       - ./recordings:/recordings
       # NOTE: If not using liveView, these two volumes can be removed

@@ -447,7 +447,7 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string, liv
 				if len(rects) > 0 {
 					logrus.Debugf("Detected %v %s(s)", len(rects), cascade.name)
 
-					if config.AppConfig.SaveCascadeDetectionsToDisk {
+					if config.AppConfig.SaveObjectDetectionsToDisk {
 						if cascade.found < len(rects) {
 							cascade.found = len(rects)
 							for i, rect := range rects {
