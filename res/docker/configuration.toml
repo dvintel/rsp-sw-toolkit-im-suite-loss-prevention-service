@@ -2,15 +2,15 @@
 LogLevel = 'INFO'
 
 [Service]
-BootTimeout = 30000
-ClientMonitor = 15000
+BootTimeout = '30s'
+ClientMonitor = '15s'
 CheckInterval = '10s'
 Host = 'loss-prevention-service'
 Port = 48095
 Protocol = 'http'
 ReadMaxLimit = 100
 StartupMsg = 'Loss Prevention Service'
-Timeout = 5000
+Timeout = '5s'
 
 [Clients]
   [Clients.CoreData]
@@ -22,6 +22,11 @@ Timeout = 5000
   Protocol = "http"
   Host = "edgex-support-logging"
   Port = 48061
+
+  [Clients.Notifications]
+  Protocol = 'http'
+  Host = 'edgex-support-notifications'
+  Port = 48060
 
 [Registry]
 Host = 'edgex-core-consul'

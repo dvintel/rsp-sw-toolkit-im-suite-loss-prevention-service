@@ -6,13 +6,15 @@ set -e
 
 app_name=loss-prevention-service
 
+fixPermissions() {
+  printf "\e[36mFixing permissions...\e[0m"
+  chown ${LOCAL_USER}:${LOCAL_USER} go.mod go.sum
+  printf "\e[2m\e[32m[OK]\e[0m\n"
+}
+
 printf "\e[36mSetting up OpenVINO environment...\e[0m"
 . /opt/intel/openvino/bin/setupvars.sh > /dev/null
 printf "\e[32m [OK]\e[0m\n"
-
-printf "\e[2mFixing permissions...\e[0m"
-chown ${LOCAL_USER}:${LOCAL_USER} go.mod go.sum
-printf "\e[2m\e[32m[OK]\e[0m\n"
 
 printf "\e[36mSetting up GoCV build environment...\e[0m"
 export CGO_CXXFLAGS="--std=c++11"
@@ -22,9 +24,7 @@ export CGO_LDFLAGS="-lpthread -ldl -lopencv_core -lopencv_videoio -lopencv_imgpr
 printf "\e[32m [OK]\e[0m\n"
 
 printf "\e[34mBuilding ${app_name}...\e[0m\n"
-GOOS=linux GOARCH=amd64 CGO_ENABLED=1 GO111MODULE=auto go build -tags openvino -v -o ./${app_name}
+GOOS=linux GOARCH=amd64 CGO_ENABLED=1 GO111MODULE=auto go build -tags openvino -v -o ./${app_name} || (err=$?; fixPermissions; exit ${err})
 printf "\e[34mBuild finished \e[32m[OK]\e[0m\n"
 
-printf "\e[2mFixing permissions...\e[0m"
-chown ${LOCAL_USER}:${LOCAL_USER} go.mod go.sum
-printf "\e[2m\e[32m[OK]\e[0m\n"
+fixPermissions

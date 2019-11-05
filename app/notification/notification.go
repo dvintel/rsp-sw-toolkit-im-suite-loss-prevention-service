@@ -2,33 +2,27 @@ package notification
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/lossprevention"
+	"github.com/edgexfoundry/app-functions-sdk-go/appcontext"
+	"github.com/edgexfoundry/go-mod-core-contracts/clients/notifications"
+	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"net/http"
-	"strings"
-	"time"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	notificationEndPoint = "/api/v1/notification"
-	subscriptionEndPoint = "/api/v1/subscription"
+	notificationSlug     = "loss-prevention-service"
+	subscriptionEndpoint = "/api/v1/subscription"
 	notificationCategory = "SECURITY"
 	notificationSeverity = "CRITICAL"
-	notificationLabel    = "FOOD-SAFETY"
+	notificationLabel    = "LOSS-PREVENTION"
+	notificationSender   = "Loss Prevention App"
 )
-
-// Notification holds the body schema to post a notification event to EdgeX
-type Notification struct {
-	Slug     string   `json:"slug"`
-	Sender   string   `json:"sender"`
-	Category string   `json:"category"`
-	Severity string   `json:"severity"`
-	Content  string   `json:"content"`
-	Labels   []string `json:"labels"`
-}
 
 // Subscriber holds the body schema to register a subscriber to EdgeX
 type Subscriber struct {
@@ -46,70 +40,37 @@ type Channels struct {
 	MailAddresses []string `json:"mailAddresses,omitempty"`
 }
 
-// PostNotification sends a notification when group of tags reach freezer area
 // This leverages EdgeX Alerts & notification service
-func PostNotification(content string, notificationServiceURL string) error {
+func PostNotification(edgexcontext *appcontext.Context, content string) error {
 
 	log.Info("Sending notification to EdgeX...")
 
-	notification := Notification{
-		Slug:     "freezer-arrival-notification-" + time.Now().String(),
+	notif := notifications.Notification{
+		Slug:     notificationSlug + "-" + strconv.FormatInt(helper.UnixMilliNow(), 10),
 		Labels:   []string{notificationLabel},
-		Sender:   "Food Safety App",
+		Sender:   notificationSender,
 		Category: notificationCategory,
 		Severity: notificationSeverity,
-		Content:  content}
+		Content:  content,
+	}
 
-	requestBody, err := json.Marshal(notification)
+	err := edgexcontext.NotificationsClient.SendNotification(notif, context.Background())
 	if err != nil {
-		return err
+		log.Errorf("unable to post notification to EdgeX: %v", err)
+	} else {
+		log.Info("Successfully sent notification to EdgeX")
 	}
-
-	response, err := http.Post(notificationServiceURL+notificationEndPoint, "application/json", bytes.NewBuffer(requestBody))
-	if err != nil {
-		return err
-	}
-
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("POST error on notification endpoint, StatusCode %d", response.StatusCode)
-	}
-
-	return nil
-
-}
-
-// CreateBodyContent composes the body for the notification message
-func CreateBodyContent(tags []lossprevention.Tag, temperature float32, readerAlias string) string {
-
-	currentTime := time.Now()
-
-	// Extract EPC value from tags
-	epcSlice := make([]string, len(tags))
-	for _, val := range tags {
-		epcSlice = append(epcSlice, val.Epc)
-	}
-
-	body := ` 
-	Item(s) has reached the %s.
-	Current temperature in the area is %.2f.
-	EPC(s): %s
-	Date: %s
-	`
-	content := fmt.Sprintf(body, readerAlias, temperature, strings.Join(epcSlice, ","), currentTime.Format("2006-01-02 15:04:05 Monday"))
-
-	return content
+	return err
 }
 
 // RegisterSubscriber registers a subscriber to EdgeX Alerts & notification service using email as channel
-func RegisterSubscriber(emails []string, notificationServiceURL string) error {
+func RegisterSubscriber(emails []string) error {
 
 	// Create requestBody
 	subscriber := new(Subscriber)
 	channels := Channels{Type: "EMAIL", MailAddresses: emails}
 
-	subscriber.Slug = "freezer-arrival-notification"
+	subscriber.Slug = notificationSlug
 	subscriber.Receiver = "USER"
 	subscriber.SubscribedCategories = []string{notificationCategory}
 	subscriber.SubscribedLabels = []string{notificationLabel}
@@ -120,7 +81,7 @@ func RegisterSubscriber(emails []string, notificationServiceURL string) error {
 		return err
 	}
 
-	response, err := http.Post(notificationServiceURL+subscriptionEndPoint, "application/json", bytes.NewBuffer(requestBody))
+	response, err := http.Post(config.AppConfig.NotificationServiceURL+subscriptionEndpoint, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return err
 	}

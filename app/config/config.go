@@ -64,6 +64,7 @@ type (
 		EnableEyeDetection                                          bool
 		EyeDetectionColor                                           float64
 		EyeDetectionXmlFile, EyeDetectionAnnotation                 string
+		NotificationServiceURL, EmailSubscribers                    string
 	}
 )
 
@@ -161,6 +162,9 @@ func InitConfig() error {
 	AppConfig.EyeDetectionColor = getOrDefaultFloat64(config, "eyeDetectionColor", 0)
 	AppConfig.EyeDetectionXmlFile = getOrDefaultString(config, "eyeDetectionXmlFile", "haarcascade_eye.xml")
 	AppConfig.EyeDetectionAnnotation = getOrDefaultString(config, "eyeDetectionAnnotation", "")
+
+	AppConfig.NotificationServiceURL = getOrDefaultString(config, "notificationServiceURL", "http://edgex-support-notifications:48060")
+	AppConfig.EmailSubscribers = getOrDefaultString(config, "emailSubscribers", "")
 
 	return nil
 }
