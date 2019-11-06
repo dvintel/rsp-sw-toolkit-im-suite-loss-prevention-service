@@ -3,6 +3,9 @@ version: '3.4'
 networks:
   main-net:
 
+volumes:
+  www-root:
+
 services:
 
   loss-prevention:
@@ -14,6 +17,7 @@ services:
       - "edgex-support-logging:172.17.0.1"
       - "edgex-core-consul:172.17.0.1"
       - "edgex-core-command:172.17.0.1"
+      - "edgex-support-notifications:172.17.0.1"
     logging:
       options:
         max-size: "100m"
@@ -37,7 +41,7 @@ services:
       fullscreenView: "false"
       showVideoDebugStats: "true"
       # Note: If not using live view remove this
-      DISPLAY: unix:0
+      DISPLAY: "unix:0"
 
       videoCaptureFOURCC: "MJPG"
       recordingDuration: 15
@@ -62,13 +66,13 @@ services:
       faceDetectionColor: 0xff0000
 
       # Profile Face Detection
-      enableProfileFaceDetection: "true"
+      enableProfileFaceDetection: "false"
       profileFaceDetectionXmlFile: "haarcascade_profileface.xml"
       profileFaceDetectionAnnotation: "Employee"
       profileFaceDetectionColor: 0x0000ff
 
       # Upper Body Detection
-      enableUpperBodyDetection: "true"
+      enableUpperBodyDetection: "false"
       upperBodyDetectionXmlFile: "haarcascade_upperbody.xml"
       upperBodyDetectionAnnotation: "Employee"
       upperBodyDetectionColor: 0xffffff
@@ -93,6 +97,7 @@ services:
 #      epcFilter: "3035*72[CB][0-6EF]"
       skuFilter: "*"
 
+      emailSubscribers: ""
     devices:
       # NOTE: If using a usb camera, make sure to map the right one here
       - /dev/video0:/dev/video0
@@ -115,5 +120,5 @@ services:
     ports:
       - "9091:80"
     volumes:
-      - ./video-server/www:/usr/share/nginx/html
+      - www-root:/usr/share/nginx/html
       - ./recordings:/usr/share/nginx/html/recordings

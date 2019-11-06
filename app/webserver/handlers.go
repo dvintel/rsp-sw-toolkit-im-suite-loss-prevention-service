@@ -20,11 +20,15 @@ package webserver
 
 import (
 	"context"
+	"fmt"
+	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/web"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -55,6 +59,7 @@ func (handler *Handler) ListRecordings(ctx context.Context, writer http.Response
 	if err != nil {
 		logrus.Error(err)
 		web.Respond(ctx, writer, "Internal Error", http.StatusInternalServerError)
+		return err
 	}
 
 	resp := NewRecordingsResponse(len(folders))
@@ -93,5 +98,48 @@ func (handler *Handler) ListRecordings(ctx context.Context, writer http.Response
 	}
 	logrus.Tracef("%+v", resp)
 	web.Respond(ctx, writer, resp, http.StatusOK)
+	return nil
+}
+
+func (handler *Handler) DeleteRecording(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
+	vars := mux.Vars(request)
+	folder, ok := vars["foldername"]
+	if !ok {
+		web.Respond(ctx, writer, "Bad Request", http.StatusBadRequest)
+		return fmt.Errorf("bad request")
+	}
+
+	if err := os.RemoveAll(path.Join(baseFolder, folder)); err != nil {
+		logrus.Error(err)
+		web.Respond(ctx, writer, "Internal Error", http.StatusInternalServerError)
+		return err
+	}
+
+	web.Respond(ctx, writer, nil, http.StatusOK)
+	return nil
+}
+
+func (handler *Handler) DeleteAllRecordings(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
+	folders, err := ioutil.ReadDir(baseFolder)
+	if err != nil {
+		logrus.Error(err)
+		web.Respond(ctx, writer, "Internal Error", http.StatusInternalServerError)
+		return err
+	}
+
+	for _, folder := range folders {
+		if err := os.RemoveAll(path.Join(baseFolder, folder.Name())); err != nil {
+			logrus.Error(err)
+			web.Respond(ctx, writer, "Internal Error", http.StatusInternalServerError)
+			return err
+		}
+	}
+
+	web.Respond(ctx, writer, nil, http.StatusOK)
+	return nil
+}
+
+func (handler *Handler) Options(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
+	web.Respond(ctx, writer, nil, http.StatusOK)
 	return nil
 }

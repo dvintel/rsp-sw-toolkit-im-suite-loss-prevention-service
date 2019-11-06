@@ -2,15 +2,15 @@
 LogLevel = 'INFO'
 
 [Service]
-BootTimeout = 30000
-ClientMonitor = 15000
+BootTimeout = '30s'
+ClientMonitor = '15s'
 CheckInterval = '10s'
 Host = 'localhost'
 Port = 48095
 Protocol = 'http'
 ReadMaxLimit = 100
 StartupMsg = 'loss-prevention-service'
-Timeout = 5000
+Timeout = '5s'
 
 [Clients]
   [Clients.CoreData]
@@ -22,6 +22,11 @@ Timeout = 5000
   Protocol = "http"
   Host = "localhost"
   Port = 48061
+
+  [Clients.Notifications]
+  Protocol = 'http'
+  Host = 'localhost'
+  Port = 48060
 
 [Registry]
 Host = 'localhost'

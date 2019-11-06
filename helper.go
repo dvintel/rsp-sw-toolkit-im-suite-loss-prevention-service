@@ -27,18 +27,6 @@ import (
 	"strings"
 )
 
-func errorHandler(message string, err error, errorGauge *metrics.Gauge) {
-	if err != nil {
-		if errorGauge != nil {
-			(*errorGauge).Update(1)
-		}
-		log.WithFields(log.Fields{
-			"Method": "main",
-			"Error":  fmt.Sprintf("%+v", err),
-		}).Error(message)
-	}
-}
-
 func fatalErrorHandler(message string, err error, errorGauge *metrics.Gauge) {
 	if err != nil {
 		if errorGauge != nil {

@@ -30,6 +30,7 @@ import (
 	"image"
 	"image/color"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -68,6 +69,8 @@ func convertColor(c float64) color.RGBA {
 }
 
 func SetupCascadeFiles() {
+	logrus.Debug("SetupCascadeFiles()")
+
 	if config.AppConfig.EnableFaceDetection {
 		cascadeFiles = append(cascadeFiles, CascadeFile{
 			name:     "face",
@@ -172,6 +175,9 @@ func SetupCascadeFiles() {
 			},
 		})
 	}
+
+	logrus.Debug("Enabled OpenCV Detections: ", cascadeFiles)
+	logrus.Debug("SetupCascadeFiles() complete.")
 }
 
 // codecToFloat64 returns a float64 representation of FourCC bytes for use with `gocv.VideoCaptureFOURCC`
@@ -343,12 +349,23 @@ func safeClose(c io.Closer) {
 	}
 }
 
-func SanityCheck() error {
+func SanityCheck() (bool, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Errorf("recovered from panic: %+v", r)
+		}
+	}()
+
+	logrus.Debug("SanityCheck()")
+
 	SetupCascadeFiles()
-	return RecordVideoToDisk(config.AppConfig.VideoDevice, 1, "/tmp", false)
+
+	recorded, err := RecordVideoToDisk(config.AppConfig.VideoDevice, 3.0/float64(config.AppConfig.VideoOutputFps), "/tmp", false)
+	logrus.Debugf("SanityCheck() complete. Returned: %v, %+v", recorded, err)
+	return recorded, err
 }
 
-func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string, liveView bool) error {
+func RecordVideoToDisk(videoDevice string, seconds float64, outputFolder string, liveView bool) (bool, error) {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Errorf("recovered from panic: %+v", r)
@@ -359,14 +376,14 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string, liv
 	// also we do not want to queue up recordings because they would be at invalid times anyways
 	if !cameraSemaphone.TryAcquire(1) {
 		logrus.Warn("unable to acquire camera lock, we must already be recording. skipping.")
-		return nil
+		return false, nil
 	}
 	defer cameraSemaphone.Release(1)
 
 	recorder := NewRecorder(videoDevice, outputFolder, liveView)
 	if err := recorder.Open(); err != nil {
 		logrus.Errorf("error: %v", err)
-		return err
+		return false, err
 	}
 
 	defer recorder.Close()
@@ -374,7 +391,7 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string, liv
 	var err error
 	recorder.writer, err = gocv.VideoWriterFile(recorder.outputFilename, recorder.codec, recorder.fps, recorder.width, recorder.height, true)
 	if err != nil {
-		return errors.Wrapf(err, "error opening video writer device: %+v", recorder.outputFilename)
+		return false, errors.Wrapf(err, "error opening video writer device: %+v", recorder.outputFilename)
 	}
 
 	if recorder.liveView {
@@ -387,7 +404,7 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string, liv
 	}
 	begin := time.Now()
 
-	recorder.frameCount = int(recorder.fps * float64(seconds))
+	recorder.frameCount = int(math.Round(recorder.fps * seconds))
 	var rects []image.Rectangle
 	// for debug stats
 	var read, process, total DebugStats
@@ -403,7 +420,7 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string, liv
 		startTS = helper.UnixMilliNow()
 
 		if ok := recorder.webcam.Read(&recorder.frame); !ok {
-			return fmt.Errorf("unable to read from webcam. device closed: %+v", recorder.videoDevice)
+			return false, fmt.Errorf("unable to read from webcam. device closed: %+v", recorder.videoDevice)
 		}
 		readTS = helper.UnixMilliNow()
 
@@ -532,5 +549,5 @@ func RecordVideoToDisk(videoDevice string, seconds int, outputFolder string, liv
 
 	logrus.Debugf("recording took %v", time.Now().Sub(begin))
 
-	return nil
+	return true, nil
 }

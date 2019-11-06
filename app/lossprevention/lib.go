@@ -21,8 +21,10 @@ package lossprevention
 
 import (
 	"fmt"
+	"github.com/edgexfoundry/app-functions-sdk-go/appcontext"
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
+	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/notification"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/camera"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
@@ -33,7 +35,7 @@ const (
 	videoFolderPattern = "/recordings/%v_%s_%s"
 )
 
-func HandleDataPayload(payload *DataPayload) error {
+func HandleDataPayload(edgexcontext *appcontext.Context, payload *DataPayload) error {
 
 	for _, tag := range payload.TagEvent {
 		if tag.Event != moved {
@@ -69,18 +71,36 @@ func HandleDataPayload(payload *DataPayload) error {
 		}
 
 		logrus.Debugf("triggering on exiting tag: epc: %s (sku: %s)", tag.Epc, tag.ProductID)
+		go triggerRecord(edgexcontext, &tag)
 		// return so we do not keep checking
-		return triggerRecord(&tag)
+		return nil
 	}
 
 	return nil
 }
 
-func triggerRecord(tag *Tag) error {
-
-	folderName := fmt.Sprintf(videoFolderPattern, helper.UnixMilliNow(), tag.ProductID, tag.Epc)
+func triggerRecord(edgexcontext *appcontext.Context, tag *Tag) {
+	timestamp := helper.UnixMilliNow()
+	folderName := fmt.Sprintf(videoFolderPattern, timestamp, tag.ProductID, tag.Epc)
 	logrus.Debugf("recording filename: %s/video%s", folderName, config.AppConfig.VideoOutputExtension)
-	go camera.RecordVideoToDisk(config.AppConfig.VideoDevice, config.AppConfig.RecordingDuration, folderName, config.AppConfig.LiveView)
 
-	return nil
+	if recorded, err := camera.RecordVideoToDisk(config.AppConfig.VideoDevice, float64(config.AppConfig.RecordingDuration), folderName, config.AppConfig.LiveView); err != nil {
+		logrus.Warning("unable to send EdgeX notification: %+v", err)
+
+	} else if recorded {
+		format := `
+An item was detected leaving. A video clip has been recorded for loss prevention purposes.
+
+ Timestamp: %d
+Product ID: %s
+       EPC: %s
+
+`
+		content := fmt.Sprintf(format, timestamp, tag.ProductID, tag.Epc)
+
+		if err := notification.PostNotification(edgexcontext, content); err != nil {
+			logrus.Error(err)
+		}
+
+	}
 }

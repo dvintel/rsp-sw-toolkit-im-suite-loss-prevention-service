@@ -20,10 +20,10 @@
 package main
 
 import (
-	"fmt"
 	"github.com/edgexfoundry/app-functions-sdk-go/pkg/transforms"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/lossprevention"
+	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/notification"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/webserver"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/camera"
 	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/jsonrpc"
@@ -43,10 +43,7 @@ import (
 )
 
 const (
-	serviceKey = "loss-prevention-service"
-)
-
-const (
+	serviceKey               = "loss-prevention-service"
 	inventoryEvent           = "inventory_event"
 	sensorConfigNotification = "sensor_config_notification"
 )
@@ -76,18 +73,32 @@ func main() {
 		"Action": "Start",
 	}).Info("Starting Loss Prevention Service...")
 
+	go registerSubscribers()
+
 	go sensor.QueryBasicInfoAllSensors()
 
 	// Connect to EdgeX zeroMQ bus
 	go receiveZMQEvents()
 
-	if err := camera.SanityCheck(); err != nil {
-		logrus.Errorf("error running sanity check: %v", err)
+	if _, err := camera.SanityCheck(); err != nil {
+		logrus.Errorf("error running camera sanity check: %v", err)
 	}
 
 	webserver.StartWebServer(config.AppConfig.Port)
 
 	log.WithField("Method", "main").Info("Completed.")
+}
+
+func registerSubscribers() {
+	// Register a subscriber to EdgeX notification service
+	if config.AppConfig.EmailSubscribers == "" {
+		return
+	}
+
+	emails := strings.Split(config.AppConfig.EmailSubscribers, ",")
+	if err := notification.RegisterSubscriber(emails); err != nil {
+		log.Fatalf("Unable to register subscriber in EdgeX: %s", err)
+	}
 }
 
 func initMetrics() {
@@ -109,23 +120,25 @@ func receiveZMQEvents() {
 	//Initialized EdgeX apps functionSDK
 	edgexSdk := &appsdk.AppFunctionsSDK{ServiceKey: serviceKey}
 	if err := edgexSdk.Initialize(); err != nil {
-		edgexSdk.LoggingClient.Error(fmt.Sprintf("SDK initialization failed: %v", err))
+		logrus.Errorf("SDK initialization failed: %v", err)
 		os.Exit(-1)
 	}
 
-	edgexSdk.SetFunctionsPipeline(
+	if err := edgexSdk.SetFunctionsPipeline(
 		transforms.NewFilter(valueDescriptors).FilterByValueDescriptor,
 		processEvents,
-	)
+	); err != nil {
+		logrus.Errorf("SDK SetPipeline failed: %v\n", err)
+		os.Exit(-1)
+	}
 
-	err := edgexSdk.MakeItRun()
-	if err != nil {
-		edgexSdk.LoggingClient.Error("MakeItRun returned error: ", err.Error())
+	if err := edgexSdk.MakeItRun(); err != nil {
+		logrus.Errorf("MakeItRun returned error: %v", err)
 		os.Exit(-1)
 	}
 }
 
-func processEvents(_ *appcontext.Context, params ...interface{}) (bool, interface{}) {
+func processEvents(edgexcontext *appcontext.Context, params ...interface{}) (bool, interface{}) {
 	if len(params) < 1 {
 		return false, nil
 	}
@@ -146,19 +159,19 @@ func processEvents(_ *appcontext.Context, params ...interface{}) (bool, interfac
 				return false, err
 			}
 
-			if err := lossprevention.HandleDataPayload(payload); err != nil {
+			if err := lossprevention.HandleDataPayload(edgexcontext, payload); err != nil {
 				return false, err
 			}
 
 		case sensorConfigNotification:
 			logrus.Debugf("Received sensor config notification:\n%s", strings.ReplaceAll(strings.ReplaceAll(reading.Value, "\\", ""), "\"", "'"))
 
-			notification := new(jsonrpc.SensorConfigNotification)
-			if err := jsonrpc.Decode(reading.Value, notification, nil); err != nil {
+			notif := new(jsonrpc.SensorConfigNotification)
+			if err := jsonrpc.Decode(reading.Value, notif, nil); err != nil {
 				return false, err
 			}
 
-			rsp := sensor.NewRSPFromConfigNotification(notification)
+			rsp := sensor.NewRSPFromConfigNotification(notif)
 			sensor.UpdateRSP(rsp)
 
 		default:

@@ -72,6 +72,30 @@ func NewRouter() *mux.Router {
 			"/recordings",
 			handler.ListRecordings,
 		},
+		{
+			"DeleteAllRecordings",
+			"DELETE",
+			"/recordings",
+			handler.DeleteAllRecordings,
+		},
+		{
+			"OptionsDeleteAllRecordings",
+			"OPTIONS",
+			"/recordings",
+			handler.Options,
+		},
+		{
+			"DeleteRecording",
+			"DELETE",
+			"/recordings/{foldername}",
+			handler.DeleteRecording,
+		},
+		{
+			"OptionsDeleteRecording",
+			"OPTIONS",
+			"/recordings/{foldername}",
+			handler.Options,
+		},
 	}
 
 	router := mux.NewRouter().StrictSlash(true)
