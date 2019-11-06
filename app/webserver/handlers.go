@@ -138,3 +138,8 @@ func (handler *Handler) DeleteAllRecordings(ctx context.Context, writer http.Res
 	web.Respond(ctx, writer, nil, http.StatusOK)
 	return nil
 }
+
+func (handler *Handler) Options(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
+	web.Respond(ctx, writer, nil, http.StatusOK)
+	return nil
+}
