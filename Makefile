@@ -91,7 +91,8 @@ delete-all-recordings:
 
 iterate: build up
 
-iterate-d: build up-d tail
+iterate-d: build up-d
+	$(trap_ctrl_c) $(MAKE) tail
 
 restart:
 	$(compose) restart $(args)
@@ -99,7 +100,7 @@ restart:
 kill:
 	$(compose) kill $(args)
 
-tail: up-d
+tail:
 	$(trap_ctrl_c) $(call log,-f --tail=10, $(args))
 
 down:
@@ -129,7 +130,7 @@ test:
 		-e GOCACHE=/cache \
 		-e LOCAL_USER=$$(id -u $$(logname)) \
 		rsp/$(BUILDER_IMAGE):dev \
-		./test.sh ./... $(args)
+		./unittests.sh ./... $(args)
 
 force-test:
 	$(MAKE) test args=-count=1
