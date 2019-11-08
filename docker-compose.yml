@@ -66,13 +66,13 @@ services:
       faceDetectionColor: 0xff0000
 
       # Profile Face Detection
-      enableProfileFaceDetection: "false"
+      enableProfileFaceDetection: "true"
       profileFaceDetectionXmlFile: "haarcascade_profileface.xml"
       profileFaceDetectionAnnotation: "Employee"
       profileFaceDetectionColor: 0x0000ff
 
       # Upper Body Detection
-      enableUpperBodyDetection: "false"
+      enableUpperBodyDetection: "true"
       upperBodyDetectionXmlFile: "haarcascade_upperbody.xml"
       upperBodyDetectionAnnotation: "Employee"
       upperBodyDetectionColor: 0xffffff
@@ -90,17 +90,17 @@ services:
       eyeDetectionColor: 0x0000ff
 
       # NOTE: If using a usb camera, make sure this number matches the one in the `devices` field below
-      usbCameraDeviceIndex: 0
-#      ipCameraStreamUrl: ""
+#      usbCameraDeviceIndex: 0
+      ipCameraStreamUrl: "rtsp://admin:@192.168.3.108:554"
 
       epcFilter: "*"
 #      epcFilter: "3035*72[CB][0-6EF]"
       skuFilter: "*"
 
       emailSubscribers: ""
-    devices:
-      # NOTE: If using a usb camera, make sure to map the right one here
-      - /dev/video0:/dev/video0
+#    devices:
+#      # NOTE: If using a usb camera, make sure to map the right one here
+#      - /dev/video0:/dev/video0
 
     volumes:
       - ./recordings:/recordings

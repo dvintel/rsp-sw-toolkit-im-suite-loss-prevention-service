@@ -542,7 +542,6 @@ func RecordVideoToDisk(videoDevice string, seconds float64, outputFolder string,
 				logrus.Debugf("stopping video live view")
 				recorder.liveView = false
 				safeClose(recorder.window)
-				break
 			}
 		}
 	}
