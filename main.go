@@ -82,6 +82,10 @@ func main() {
 
 	if _, err := camera.SanityCheck(); err != nil {
 		logrus.Errorf("error running camera sanity check: %v", err)
+		logrus.Error("service will now exit...")
+		os.Exit(-1)
+	} else {
+		logrus.Info("Camera sanity check was successful")
 	}
 
 	webserver.StartWebServer(config.AppConfig.Port)

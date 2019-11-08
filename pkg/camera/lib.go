@@ -462,17 +462,19 @@ func RecordVideoToDisk(videoDevice string, seconds float64, outputFolder string,
 				}
 
 				if len(rects) > 0 {
-					logrus.Debugf("Detected %v %s(s)", len(rects), cascade.name)
+					if cascade.found < len(rects) {
+						cascade.found = len(rects)
+						logrus.Debugf("Detected %v %s(s)", len(rects), cascade.name)
 
-					if config.AppConfig.SaveObjectDetectionsToDisk {
-						if cascade.found < len(rects) {
-							cascade.found = len(rects)
+						if config.AppConfig.SaveObjectDetectionsToDisk {
 							for i, rect := range rects {
 								recorder.writeFrameRegion(fmt.Sprintf("%s.%d.jpg", cascade.name, i+cascade.written), transformProcessRect(rect))
 							}
 							// this keeps track of how many we have written before. so if we see 1 face and write it, then see 2 faces, it will not overwrite the first face found
 							cascade.written += cascade.found
 						}
+					} else {
+						logrus.Tracef("Detected %v %s(s)", len(rects), cascade.name)
 					}
 
 					if liveView {

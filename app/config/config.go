@@ -108,7 +108,7 @@ func InitConfig() error {
 	if len(AppConfig.VideoCaptureFOURCC) != 4 && AppConfig.VideoCaptureFOURCC != "" {
 		return fmt.Errorf("videoCaptureFOURCC must be a four-letter string such as 'MJPG', or an empty-string to disable setting this property: \"\"")
 	}
-	AppConfig.VideoCaptureBufferSize = getOrDefaultInt(config, "videoCaptureBufferSize", 3)
+	AppConfig.VideoCaptureBufferSize = getOrDefaultInt(config, "videoCaptureBufferSize", 1)
 	if AppConfig.VideoCaptureBufferSize < 1 {
 		return fmt.Errorf("videoCaptureBufferSize must be a value greater than 0")
 	}
