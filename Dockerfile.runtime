@@ -2,7 +2,6 @@
 FROM ubuntu:18.04 as runtime-base
 # Update package list, upgrade existing packages, and download dependencies
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
         gnupg2 \
         libzmq5 \
@@ -20,21 +19,16 @@ RUN apt-get update && \
         libgstreamer-plugins-good1.0-0 \
         libgtk-3.0 \
         libx264-152 \
-        software-properties-common \
         wget
 
 FROM runtime-base as openvino-runtime
 # Install OpenVINO
 RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB -O /tmp/key.pub && \
     apt-key add /tmp/key.pub && \
+    rm -f /tmp/key.pub && \
     echo "deb https://apt.repos.intel.com/openvino/2019/ all main" > /etc/apt/sources.list.d/intel-openvino-2019.list && \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y intel-openvino-runtime-ubuntu18-2019.3.344
-
-# Use this to copy any pre-download OpenVINO models
-#FROM rsp/gocv-openvino-builder:dev as gocv-openvino-builder
-#FROM openvino-runtime as openvino-runtime-models
-#COPY --from=gocv-openvino-builder /opt/intel/openvino/models /opt/intel/openvino/models
 
 FROM openvino-runtime as final-app-runtime
 # Cleanup
@@ -42,7 +36,6 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get remove --purge -y \
         gnupg2 \
         wget \
-        software-properties-common \
         && \
     DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
     DEBIAN_FRONTEND=noninteractive apt-get autoremove -y --purge && \

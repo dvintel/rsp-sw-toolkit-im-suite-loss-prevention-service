@@ -2,12 +2,7 @@
 FROM ubuntu:18.04 as builder-base
 # Update package list, upgrade existing packages, and download dependencies
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        build-essential \
-        cmake \
-        git \
-        gnupg2 \
         gstreamer1.0-plugins-base \
         libavcodec-dev \
         libavformat-dev \
@@ -17,14 +12,14 @@ RUN apt-get update && \
         libgtk-3.0 \
         libgtk2.0-dev \
         libpango1.0-dev \
-        libswscale-dev \
+        libswscale-dev
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        build-essential \
+        gnupg2 \
         libzmq3-dev \
-        python3 \
-        python3-pip \
-        software-properties-common \
-        sudo \
-        vim \
-        virtualenv \
+        git \
         wget
 
 FROM builder-base as openvino-builder
@@ -35,18 +30,11 @@ RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCT
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y intel-openvino-dev-ubuntu18-2019.3.344
 
-#RUN pip3 install -r /opt/intel/openvino/python/python3.6/requirements.txt && \
-#    cd /opt/intel/openvino/deployment_tools/inference_engine/samples && \
-#    ./build_samples.sh
-
-# Use this to pre-download OpenVINO models
-#RUN pip3 install -r /opt/intel/openvino/deployment_tools/open_model_zoo/tools/downloader/requirements.in && \
-#    mkdir -p /opt/intel/openvino/models && \
-#    /opt/intel/openvino/deployment_tools/open_model_zoo/tools/downloader/downloader.py --all -o /opt/intel/openvino/models
-
 FROM openvino-builder as gocv-openvino-builder
 # Install Go 1.12
-RUN add-apt-repository ppa:longsleep/golang-backports -y && \
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F6BC817356A3D45E && \
+    echo "deb http://ppa.launchpad.net/longsleep/golang-backports/ubuntu bionic main" > /etc/apt/sources.list.d/longsleep-ubuntu-golang-backports-bionic.list && \
+    apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y golang-1.12-go
 ENV PATH=/usr/lib/go-1.12/bin:$PATH
 
