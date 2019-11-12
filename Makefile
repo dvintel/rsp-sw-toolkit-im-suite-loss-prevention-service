@@ -62,7 +62,7 @@ $(PROJECT_NAME): build/openvino-builder Makefile build.sh $(GO_FILES)
 		-e GOCACHE=/cache \
 		-e LOCAL_USER=$$(id -u $$(logname)) \
 		rsp/$(BUILDER_IMAGE):dev \
-		./build.sh
+		/app/build.sh
 
 build/openvino-runtime: Dockerfile.runtime
 	docker build \
@@ -130,7 +130,7 @@ test:
 		-e GOCACHE=/cache \
 		-e LOCAL_USER=$$(id -u $$(logname)) \
 		rsp/$(BUILDER_IMAGE):dev \
-		./unittests.sh ./... $(args)
+		/app/unittests.sh ./... $(args)
 
 force-test:
 	$(MAKE) test args=-count=1
