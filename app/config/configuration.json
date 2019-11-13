@@ -3,5 +3,7 @@
   "loggingLevel": "debug",
   "telemetryEndpoint": "",
   "telemetryDataStoreName": "",
-  "port": "8080"
+  "port": "8080",
+  "videoUrlBase": "",
+  "usbCameraDeviceIndex": 0
 }

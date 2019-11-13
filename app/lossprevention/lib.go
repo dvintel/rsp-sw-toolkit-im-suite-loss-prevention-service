@@ -85,7 +85,7 @@ func triggerRecord(edgexcontext *appcontext.Context, tag *Tag) {
 	logrus.Debugf("recording filename: %s/video%s", folderName, config.AppConfig.VideoOutputExtension)
 
 	if recorded, err := camera.RecordVideoToDisk(config.AppConfig.VideoDevice, float64(config.AppConfig.RecordingDuration), folderName, config.AppConfig.LiveView); err != nil {
-		logrus.Warning("unable to send EdgeX notification: %+v", err)
+		logrus.Warningf("unable to send EdgeX notification: %+v", err)
 
 	} else if recorded {
 		format := `

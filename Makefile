@@ -4,6 +4,8 @@ PROJECT_NAME ?= loss-prevention-service
 
 BUILDER_IMAGE ?= gocv-openvino-builder
 RUNTIME_IMAGE ?= openvino-runtime
+TEST_IMAGE_FULL_TAG ?= rsp/$(BUILDER_IMAGE):dev
+APP_VOLUME_MOUNT ?= -v $(PWD):/app
 
 # The default flags to use when calling submakes
 GNUMAKEFLAGS = --no-print-directory
@@ -22,6 +24,8 @@ PROXY_ARGS =	--build-arg http_proxy=$(http_proxy) \
 
 EXTRA_BUILD_ARGS ?=
 
+LOCAL_USER ?= $(shell id -u $$(logname))
+
 touch_target_file = mkdir -p $(@D) && touch $@
 
 trap_ctrl_c = trap 'exit 0' INT;
@@ -30,7 +34,7 @@ compose = docker-compose
 
 log = docker-compose logs $1 $2 2>&1
 
-.PHONY: build clean iterate iterate-d tail start stop rm deploy kill down fmt ps delete-all-recordings shell/*
+.PHONY: build clean iterate iterate-d tail start stop rm deploy kill down fmt ps delete-all-recordings prep-jenkins shell/*
 
 default: build
 
@@ -44,7 +48,7 @@ build/openvino-builder: go.mod Dockerfile.builder
 		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
 		$(PROXY_ARGS) \
 		$(EXTRA_BUILD_ARGS) \
-		--build-arg LOCAL_USER=$$(id -u $$(logname)) \
+		--build-arg LOCAL_USER=$(LOCAL_USER) \
 		-f Dockerfile.builder \
 		--label "git_sha=$(GIT_SHA)" \
 		-t rsp/$(BUILDER_IMAGE):dev \
@@ -56,11 +60,12 @@ $(PROJECT_NAME): build/openvino-builder Makefile build.sh $(GO_FILES)
 		--rm \
 		--name=$(PROJECT_NAME)-builder \
 		-v $(PROJECT_NAME)-cache:/cache \
-		-v $$(pwd):/app \
+		$(APP_VOLUME_MOUNT) \
+		$(EXTRA_BUILD_RUN_ARGS) \
 		-e GIT_TOKEN \
 		-w /app \
 		-e GOCACHE=/cache \
-		-e LOCAL_USER=$$(id -u $$(logname)) \
+		-e LOCAL_USER=$(LOCAL_USER) \
 		rsp/$(BUILDER_IMAGE):dev \
 		/app/build.sh
 
@@ -68,7 +73,7 @@ build/openvino-runtime: Dockerfile.runtime
 	docker build \
 		$(PROXY_ARGS) \
 		$(EXTRA_BUILD_ARGS) \
-		--build-arg LOCAL_USER=$$(id -u $$(logname)) \
+		--build-arg LOCAL_USER=$(LOCAL_USER) \
 		-f Dockerfile.runtime \
 		--label "git_sha=$(GIT_SHA)" \
 		-t rsp/$(RUNTIME_IMAGE):dev \
@@ -124,13 +129,13 @@ test:
 		--rm \
 		--name=$(PROJECT_NAME)-tester \
 		-v $(PROJECT_NAME)-cache:/cache \
-		-v $$(pwd):/app \
+		$(APP_VOLUME_MOUNT) \
 		-e GIT_TOKEN \
 		-w /app \
 		-e GOCACHE=/cache \
-		-e LOCAL_USER=$$(id -u $$(logname)) \
-		rsp/$(BUILDER_IMAGE):dev \
-		/app/unittests.sh ./... $(args)
+		-e LOCAL_USER=$(LOCAL_USER) \
+		$(TEST_IMAGE_FULL_TAG) \
+		./unittests.sh ./... $(args)
 
 force-test:
 	$(MAKE) test args=-count=1
@@ -146,3 +151,9 @@ shell/builder:
 
 shell/runtime:
 	docker run -it --rm --entrypoint /bin/bash rsp/$(RUNTIME_IMAGE):dev
+
+build-jenkins: build/openvino-builder Dockerfile.jenkins
+	docker build \
+		-f Dockerfile.jenkins \
+		-t $(TAG) \
+		.

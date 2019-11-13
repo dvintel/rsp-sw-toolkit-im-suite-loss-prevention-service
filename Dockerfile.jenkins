@@ -1,0 +1,4 @@
+FROM rsp/gocv-openvino-builder:dev
+WORKDIR /app
+ADD . .
+RUN ./build.sh

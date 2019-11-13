@@ -32,7 +32,8 @@ RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCT
 
 FROM openvino-builder as gocv-openvino-builder
 # Install Go 1.12
-RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F6BC817356A3D45E && \
+RUN wget "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0xF6BC817356A3D45E" -O /tmp/key.pub && \
+    apt-key add /tmp/key.pub && \
     echo "deb http://ppa.launchpad.net/longsleep/golang-backports/ubuntu bionic main" > /etc/apt/sources.list.d/longsleep-ubuntu-golang-backports-bionic.list && \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y golang-1.12-go
