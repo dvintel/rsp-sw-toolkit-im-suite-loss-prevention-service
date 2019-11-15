@@ -8,9 +8,7 @@ rrpBuildGoCode {
     protexProjectName = 'bb-loss-prevention-service'
     skipTests = true
 
-    // -j: build in parallel
-    // disable existing no_proxy otherwise we are unable to access external intel.com
-    customBuildScript = './buildJenkins.sh'
+    customBuildScript = 'make clean build force-test'
 
     infra = [
         stackName: 'RSP-Codepipeline-loss-prevention-service'
