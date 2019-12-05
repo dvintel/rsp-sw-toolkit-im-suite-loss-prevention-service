@@ -88,6 +88,8 @@ func main() {
 		logrus.Info("Camera sanity check was successful")
 	}
 
+	go camera.RecordVideoToDisk(config.AppConfig.VideoDevice, 10, "/recordings/testing", true)
+
 	webserver.StartWebServer(config.AppConfig.Port)
 
 	log.WithField("Method", "main").Info("Completed.")

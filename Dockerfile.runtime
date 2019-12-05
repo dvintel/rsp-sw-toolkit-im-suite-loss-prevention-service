@@ -1,5 +1,5 @@
 # Base image
-FROM ubuntu:18.04 as runtime-base
+FROM ubuntu:18.04
 # Update package list, upgrade existing packages, and download dependencies
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -21,16 +21,10 @@ RUN apt-get update && \
         libx264-152 \
         wget
 
-FROM runtime-base as openvino-runtime
-# Install OpenVINO
-RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB -O /tmp/key.pub && \
-    apt-key add /tmp/key.pub && \
-    rm -f /tmp/key.pub && \
-    echo "deb https://apt.repos.intel.com/openvino/2019/ all main" > /etc/apt/sources.list.d/intel-openvino-2019.list && \
-    apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y intel-openvino-runtime-ubuntu18-2019.3.344
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    libopencv-core3.2
 
-FROM openvino-runtime as final-app-runtime
 # Cleanup
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get remove --purge -y \

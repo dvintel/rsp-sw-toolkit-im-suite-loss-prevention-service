@@ -1,4 +1,4 @@
-FROM rsp/openvino-runtime:dev
+FROM rsp/gocv-openvino-builder:dev
 
 ADD loss-prevention-service entrypoint.sh /
 ADD /res /res

@@ -91,7 +91,7 @@ services:
 
       # NOTE: If using a usb camera, make sure this number matches the one in the `devices` field below
       usbCameraDeviceIndex: 0
-#      ipCameraStreamUrl: "rtsp://admin:@192.168.3.108:554"
+#      ipCameraStreamUrl: "rtsp://admin:@192.168.1.108:554"
 
       epcFilter: "*"
 #      epcFilter: "3035*72[CB][0-6EF]"
