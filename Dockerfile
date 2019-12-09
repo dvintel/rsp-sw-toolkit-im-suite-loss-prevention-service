@@ -26,8 +26,10 @@ WORKDIR /tmp
 RUN printf '#!/bin/sh\nexec "$@"\n' > /bin/sudo && \
     chmod +x /bin/sudo && \
     git clone -b v0.21.0 https://github.com/hybridgroup/gocv && \
-    make -C gocv install && \
-    rm -f /bin/sudo
+    make -C ./gocv deps download build sudo_install verify && \
+    rm -f /bin/sudo && \
+    cp -a /tmp/opencv/opencv-*/data /data && \
+    chown -R 2000:2000 /data
 
 FROM gocv-builder as gocv-impcloud-builder
 # Authentication needed to pull git modules from github.impcloud.net
@@ -40,7 +42,6 @@ FROM gocv-impcloud-builder as app-builder
 # Download go modules first so they can be cached for faster subsequent builds
 WORKDIR /app
 COPY go.mod go.mod
-ARG GO_MOD_OWNER
 RUN go mod download || \
     (printf "\n\n\e[31mThere was an error downloading go module dependencies.\nPlease make sure you set \e[1mGIT_TOKEN\e[22;24m to your git auth token!\e[0m\n\n"; exit 1)
 # Pre-compile gocv lib to make subsequent builds faster

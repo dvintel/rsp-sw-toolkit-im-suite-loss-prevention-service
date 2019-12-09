@@ -39,7 +39,7 @@ import (
 )
 
 const (
-	cascadeFolder = "./res/data/haarcascades"
+	cascadeFolder = "/data/haarcascades"
 
 	font          = gocv.FontHersheySimplex
 	fontScale     = 0.75

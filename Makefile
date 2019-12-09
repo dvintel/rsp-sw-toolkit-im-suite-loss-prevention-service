@@ -30,7 +30,7 @@ trap_ctrl_c = trap 'exit 0' INT;
 compose = docker-compose
 log = docker-compose logs $1 $2 2>&1
 
-.PHONY: build clean iterate iterate-d tail start stop rm deploy kill down fmt ps delete-all-recordings shell
+.PHONY: build clean test force-test iterate iterate-d tail start stop rm deploy kill down fmt ps delete-all-recordings shell
 
 build: build/docker
 
@@ -92,7 +92,7 @@ test: build/docker
 		-e CGO_ENABLED=1 \
 		-e GO111MODULE=auto \
 		$(FULL_IMAGE_TAG) \
-		test -v $(args)
+		test -v $(args) ./...
 
 force-test:
 	$(MAKE) test args="-count=1"
@@ -105,4 +105,3 @@ shell:
 
 build/:
 	@mkdir -p $@
-
