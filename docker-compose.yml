@@ -10,7 +10,6 @@ services:
 
   loss-prevention:
     image: rsp/loss-prevention-service:dev
-    user: 2000:2000
     networks:
       - main-net
     extra_hosts:
