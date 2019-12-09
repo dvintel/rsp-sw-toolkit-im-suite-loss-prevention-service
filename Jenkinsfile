@@ -6,6 +6,7 @@ rrpBuildGoCode {
     dockerImageName = "rsp/${projectKey}"
     ecrRegistry = "280211473891.dkr.ecr.us-west-2.amazonaws.com"
     protexProjectName = 'bb-loss-prevention-service'
+    // skip tests because we are running it using make inside customBuildScript
     skipTests = true
 
     customBuildScript = 'make clean build force-test'
