@@ -38,7 +38,7 @@ log = docker-compose logs $1 $2 2>&1
 
 .PHONY: build clean test force-test iterate iterate-d tail start stop rm deploy kill down fmt ps delete-all-recordings shell
 
-build: build/docker
+build: $(PROJECT_NAME)
 
 build/docker: Dockerfile Makefile $(GO_FILES) $(RES_FILES) | build/
 	docker build \
@@ -51,8 +51,15 @@ build/docker: Dockerfile Makefile $(GO_FILES) $(RES_FILES) | build/
 		.
 	touch $@
 
+$(PROJECT_NAME): build/docker
+	container_id=$$(docker create $(FULL_IMAGE_TAG)) && \
+		docker cp $${container_id}:/app/$(PROJECT_NAME) ./$(PROJECT_NAME) && \
+		docker rm $${container_id}
+	touch $@
+
 clean:
 	rm -rf build/*
+	rm -f $(PROJECT_NAME)
 
 delete-all-recordings:
 	sudo find recordings/ -mindepth 1 -delete

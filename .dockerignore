@@ -8,3 +8,4 @@ Makefile
 .gitignore
 docker-compose.yml
 Jenkinsfile
+loss-prevention-service

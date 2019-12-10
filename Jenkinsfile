@@ -9,7 +9,7 @@ rrpBuildGoCode {
     // skip tests because we are running it using make inside customBuildScript
     skipTests = true
 
-    customBuildScript = 'make clean build force-test'
+    customBuildScript = 'make clean loss-prevention-service force-test'
 
     infra = [
         stackName: 'RSP-Codepipeline-loss-prevention-service'
