@@ -8,6 +8,8 @@ rrpBuildGoCode {
     protexProjectName = 'bb-loss-prevention-service'
     // skip tests because we are running it using make inside customBuildScript
     skipTests = true
+    // skip docker build because we dont need the images, and the build script already builds docker to verify it works
+    skipDocker = true
 
     customBuildScript = 'make clean loss-prevention-service force-test'
 
