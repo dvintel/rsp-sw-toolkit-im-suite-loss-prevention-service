@@ -57,7 +57,7 @@ TEST_ENV_VARS ?=
 trap_ctrl_c = trap 'exit 0' INT;
 compose = docker-compose
 
-.PHONY: build clean test force-test iterate iterate-d tail start stop rm deploy kill down fmt ps delete-all-recordings shell
+.PHONY: build clean test iterate tail stop deploy kill restart fmt ps delete-all-recordings shell
 
 build: $(PROJECT_NAME)
 
@@ -85,10 +85,7 @@ clean:
 delete-all-recordings:
 	sudo find recordings/ -mindepth 1 -delete
 
-iterate: build up
-
-iterate-d: build up-d
-	$(trap_ctrl_c) $(MAKE) tail
+iterate: build deploy
 
 tail:
 	$(trap_ctrl_c) $(call log,-f --tail=10, $(args))
@@ -103,12 +100,8 @@ deploy: build
 		$(args) \
 		$(STACK_NAME)
 
-up-d: | deploy
-up: | deploy
-
-down:
+stop:
 	docker stack rm $(STACK_NAME) $(args)
-stop: | down
 
 ps:
 	$(stack) ps $(STACK_NAME)
@@ -123,14 +116,12 @@ up: build
 		up \
 		--remove-orphans \
 		$(args)
-
-up-d: build
+	
+deploy: build
 	$(MAKE) up args="-d $(args)"
-deploy: | up-d
 
-down:
+stop:
 	$(compose) down --remove-orphans $(args)
-stop: | down
 
 ps:
 	$(compose) ps
