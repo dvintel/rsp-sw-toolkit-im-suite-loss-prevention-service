@@ -29,8 +29,6 @@ services:
         max-size: "100m"
         max-file: "5"
     restart: always
-    security_opt:
-      - apparmor=unconfined
     ports:
       - "9092:8080"
     environment:
@@ -43,20 +41,13 @@ services:
       # NOTE: Point this to the nginx container port
       videoUrlBase: "http://localhost:9091/recordings"
 
-      liveView: "true"
-      fullscreenView: "false"
-      showVideoDebugStats: "true"
-      # Note: If not using live view remove this
-      DISPLAY: "unix:0"
-
-      videoCaptureFOURCC: "MJPG"
       recordingDuration: 15
       videoResolutionWidth: 1280
       videoResolutionHeight: 720
       imageProcessScale: 2
-      videoOutputFps: 25
       videoOutputCodec: "avc1"
       videoOutputExtension: ".mp4"
+      videoOutputFps: 25
 
       saveObjectDetectionsToDisk: "true"
       # Below are the various OpenCV detection algorithms you can enable
@@ -95,25 +86,8 @@ services:
       eyeDetectionAnnotation: ""
       eyeDetectionColor: 0x0000ff
 
-      # NOTE: If using a usb camera, make sure this number matches the one in the `devices` field below
-      usbCameraDeviceIndex: 0
-#      ipCameraStreamUrl: "rtsp://admin:@192.168.1.108:554"
-
-      epcFilter: "*"
-#      epcFilter: "3035*72[CB][0-6EF]"
-      skuFilter: "*"
-
-      emailSubscribers: ""
-
-    devices:
-      # NOTE: If using a usb camera, make sure to map the right one here
-      - /dev/video0:/dev/video0
-
     volumes:
       - ./recordings:/recordings
-      # NOTE: If not using liveView, these two volumes can be removed
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      - /var/run/dbus:/var/run/dbus
 
   nginx:
     image: nginx:latest

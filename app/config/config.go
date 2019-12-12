@@ -2,7 +2,7 @@
 *  Copyright (C) <2019> Intel Corporation
 *
 *  SPDX-License-Identifier: Apache-2.0
-*/
+ */
 
 package config
 
@@ -77,7 +77,7 @@ func InitConfig() error {
 	AppConfig.Port = getOrDefaultString(config, "port", "8080")
 	AppConfig.CoreCommandUrl = getOrDefaultString(config, "coreCommandUrl", "http://edgex-core-command:48082")
 
-	AppConfig.LiveView = getOrDefaultBool(config, "liveView", true)
+	AppConfig.LiveView = getOrDefaultBool(config, "liveView", false)
 	AppConfig.FullscreenView = getOrDefaultBool(config, "fullscreenView", false)
 	AppConfig.ShowVideoDebugStats = getOrDefaultBool(config, "showVideoDebugStats", false)
 	AppConfig.SaveObjectDetectionsToDisk = getOrDefaultBool(config, "saveObjectDetectionsToDisk", true)

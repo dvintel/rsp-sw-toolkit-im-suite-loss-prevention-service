@@ -1,0 +1,18 @@
+# Apache v2 license
+# Copyright (C) <2019> Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+version: '3.4'
+
+secrets:
+  environment-variables:
+    file: ./secrets/configuration.json
+
+services:
+  loss-prevention:
+    user: "2000:2000"
+    secrets:
+      - source: environment-variables
+        target: configuration.json

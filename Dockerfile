@@ -59,10 +59,15 @@ WORKDIR /app
 COPY . .
 RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=1 GO111MODULE=auto go build -v -o ./loss-prevention-service
 
-FROM app
+FROM app as testing
+ARG TEST_COMMAND="echo 'Skipping unit tests.'"
+RUN bash -c "set -x; $TEST_COMMAND; set +x;"
+
+FROM app as final
 WORKDIR /
 COPY --chown=2000:2000 /res /res
 COPY --chown=2000:2000 --from=app /app/loss-prevention-service /
+RUN rm -rf /app
 
 ENTRYPOINT ["/loss-prevention-service"]
 CMD ["-r", "--profile=docker", "--confdir=/res"]

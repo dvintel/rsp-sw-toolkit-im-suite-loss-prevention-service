@@ -1,0 +1,18 @@
+# Apache v2 license
+# Copyright (C) <2019> Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+version: '3.4'
+
+services:
+  loss-prevention:
+    environment:
+      # Note: just leave this at 0 and change the mapping in device section below
+      usbCameraDeviceIndex: 0
+      videoCaptureFOURCC: "MJPG"
+
+    devices:
+      # NOTE: If using a usb camera, make sure to map the right one here
+      - /dev/video${USB_CAMERA}:/dev/video0
