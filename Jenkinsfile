@@ -11,7 +11,7 @@ rrpBuildGoCode {
     // skip docker build because we dont need the images, and the build script already builds docker to verify it works
     skipDocker = true
 
-    customBuildScript = 'make clean loss-prevention-service force-test'
+    customBuildScript = 'make clean loss-prevention-service test'
 
     infra = [
         stackName: 'RSP-Codepipeline-loss-prevention-service'
