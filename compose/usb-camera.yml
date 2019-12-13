@@ -11,8 +11,14 @@ services:
     environment:
       # Note: just leave this at 0 and change the mapping in device section below
       usbCameraDeviceIndex: 0
+      forceUsbCamera: true
+
       videoCaptureFOURCC: "MJPG"
+
+    volumes:
+      - "./secrets/configurations.json:/run/secrets/configurations.json:ro"
 
     devices:
       # NOTE: If using a usb camera, make sure to map the right one here
+      #       by setting the env var 'USB_CAMERA' to a value such as 0, 1, etc
       - /dev/video${USB_CAMERA}:/dev/video0

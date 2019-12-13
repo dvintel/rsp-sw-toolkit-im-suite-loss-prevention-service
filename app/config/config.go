@@ -104,7 +104,7 @@ func InitConfig() error {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
-	if AppConfig.VideoDevice, err = config.GetString("ipCameraStreamUrl"); err != nil {
+	if AppConfig.VideoDevice, err = config.GetString("ipCameraStreamUrl"); err != nil || AppConfig.VideoDevice == "" || getOrDefaultBool(config, "forceUsbCamera", false) {
 		if device, err := config.GetInt("usbCameraDeviceIndex"); err == nil && device >= 0 {
 			AppConfig.VideoDevice = strconv.Itoa(device)
 		} else {
