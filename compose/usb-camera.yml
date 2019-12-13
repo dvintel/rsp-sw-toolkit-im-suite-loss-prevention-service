@@ -11,7 +11,7 @@ services:
     environment:
       # Note: just leave this at 0 and change the mapping in device section below
       usbCameraDeviceIndex: 0
-      forceUsbCamera: true
+      forceUsbCamera: "true"
 
       videoCaptureFOURCC: "MJPG"
 
