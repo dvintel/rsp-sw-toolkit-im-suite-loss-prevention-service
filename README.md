@@ -18,7 +18,7 @@ One of the following:
 
 ### Build Instructions
 
-### Sensor Configuration
+#### Sensor Configuration
 Login to the `RSP Controller` and set the `Personality` of a SINGLE sensor to `EXIT`. This is the sensor that will trigger recording events when a matching RFID tag moves near it.
 
 #### Service Configuration

@@ -20,7 +20,7 @@ endif
 ifdef SWARM_MODE
 FILE_FLAG = --compose-file
 STACK_NAME = $(SERVICE_NAME)
-log = docker logs $1 $2 $$(docker ps -qf name=$(STACK_NAME)_$(SERVICE_NAME).1) 2>&1
+log = docker service logs $1 $2 $(STACK_NAME)_$(SERVICE_NAME) 2>&1
 else
 FILE_FLAG = -f
 log = docker-compose logs $1 $2 2>&1
@@ -56,6 +56,8 @@ TEST_ENV_VARS ?=
 
 trap_ctrl_c = trap 'exit 0' INT;
 compose = docker-compose
+# this is used to fix the permissions in case user runs make as sudo
+touch_target = touch $@ && (chown $$(stat -c '%U:%G' $$PWD) $@ || true)
 
 .PHONY: build clean test iterate tail stop deploy kill restart fmt ps delete-all-recordings shell
 
@@ -70,13 +72,13 @@ build/docker: Dockerfile Makefile $(GO_FILES) $(RES_FILES) | build/
 		--label "git_commit=$(GIT_COMMIT)" \
 		-t $(FULL_IMAGE_TAG) \
 		.
-	touch $@
+	$(touch_target)
 
 $(PROJECT_NAME): build/docker
 	container_id=$$(docker create $(FULL_IMAGE_TAG)) && \
 		docker cp $${container_id}:/$(PROJECT_NAME) ./$(PROJECT_NAME) && \
 		docker rm $${container_id}
-	touch $@
+	$(touch_target)
 
 clean:
 	rm -rf build/*
@@ -91,7 +93,7 @@ tail:
 	$(trap_ctrl_c) $(call log,-f --tail=10, $(args))
 
 ifdef SWARM_MODE
-deploy: build
+deploy: build | recordings/
 	xhost +
 	USB_CAMERA=$(USB_CAMERA) \
 		docker stack deploy \
@@ -104,11 +106,11 @@ stop:
 	docker stack rm $(STACK_NAME) $(args)
 
 ps:
-	$(stack) ps $(STACK_NAME)
+	docker stack ps $(STACK_NAME)
 
 else
 
-up: build
+up: build | recordings/
 	xhost +
 	USB_CAMERA=$(USB_CAMERA) \
 		$(compose) \
@@ -117,7 +119,7 @@ up: build
 		--remove-orphans \
 		$(args)
 	
-deploy: build
+deploy: build | recordings/
 	$(MAKE) up args="-d $(args)"
 
 stop:
@@ -154,3 +156,8 @@ shell:
 
 build/:
 	@mkdir -p $@
+	$(touch_target)
+
+recordings/:
+	@mkdir -p $@
+	chown -R 2000:2000 $@ || $(touch_target)
