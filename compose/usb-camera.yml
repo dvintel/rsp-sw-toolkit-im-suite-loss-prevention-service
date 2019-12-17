@@ -16,7 +16,7 @@ services:
       videoCaptureFOURCC: "MJPG"
 
     volumes:
-      - "./secrets/configurations.json:/run/secrets/configurations.json:ro"
+      - "./secrets/configuration.json:/run/secrets/configuration.json:ro"
 
     devices:
       # NOTE: If using a usb camera, make sure to map the right one here
