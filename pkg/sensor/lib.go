@@ -16,6 +16,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
@@ -41,21 +42,22 @@ func FindByAntennaAlias(alias string) *RSP {
 	return nil
 }
 
-// GetOrCreateRSP returns a pointer to an RSP if found in the DB, and if
-// not found in the DB, a record will be created and added, then returned to the caller
-// error is only non-nil when there is an issue communicating with the DB
-func GetOrCreateRSP(deviceId string) (*RSP, error) {
+// GetOrQueryRSPInfo returns a pointer to an RSP if found in memory, otherwise will
+// query the command service for that info
+func GetOrQueryRSPInfo(deviceId string) (*RSP, error) {
+	var err error
+	var info *jsonrpc.SensorBasicInfo
+
 	rsp, ok := sensors[deviceId]
 	if !ok {
 		rsp = NewRSP(deviceId)
 
 		// this is a new sensor, try and obtain the actual info from the RSP Controller
-		info, err := QueryBasicInfo(deviceId)
+		info, err = QueryBasicInfo(deviceId)
 		if err != nil {
-			// just warn, we still want to put it in the database
+			// warn, we still want to put it in the database
 			logrus.Warn(errors.Wrapf(err, "unable to query sensor basic info for device %s", deviceId))
 		} else {
-			// update the info before upserting
 			rsp.Personality = Personality(info.Personality)
 			rsp.Aliases = info.Aliases
 			rsp.FacilityId = info.FacilityId
@@ -63,7 +65,7 @@ func GetOrCreateRSP(deviceId string) (*RSP, error) {
 		sensors[deviceId] = rsp
 	}
 
-	return rsp, nil
+	return rsp, err
 }
 
 func UpdateRSP(rsp *RSP) {
@@ -73,27 +75,51 @@ func UpdateRSP(rsp *RSP) {
 // QueryBasicInfoAllSensors retrieves the list of deviceIds from the RSP Controller
 // and then queries the basic info for each one
 func QueryBasicInfoAllSensors() error {
-	reading, err := ExecuteSensorCommand(RspController, GetDeviceIds)
-	if err != nil {
-		logrus.Error(err)
-		return err
-	}
+	var reading *models.Reading
+	var err error
 
-	logrus.Debugf("received: %s", strings.ReplaceAll(strings.ReplaceAll(reading.Value, "\\", ""), "\"", "'"))
-
-	deviceIds := new(jsonrpc.SensorDeviceIdsResponse)
-	if err := jsonrpc.Decode(reading.Value, deviceIds, nil); err != nil {
-		return err
-	}
-
-	for _, deviceId := range *deviceIds {
-		rsp, _ := GetOrCreateRSP(deviceId)
-		if rsp != nil {
-			logrus.Debugf("rsp: %+v", rsp)
+	// keep trying
+	for err != nil || reading == nil {
+		if reading, err = ExecuteSensorCommand(RspController, GetDeviceIds); err != nil {
+			logrus.Errorf("Error trying to get list of device ids from controller: %v", err)
+			time.Sleep(5 * time.Second)
 		}
 	}
 
+	logrus.Debugf("ExecuteSensorCommand %v received: %s", GetDeviceIds, strings.ReplaceAll(strings.ReplaceAll(reading.Value, "\\", ""), "\"", "'"))
+
+	deviceIds := new(jsonrpc.SensorDeviceIdsResponse)
+	if err := jsonrpc.Decode(reading.Value, deviceIds, nil); err != nil {
+		logrus.Errorf("unable to decode SensorDeviceIdsResponse")
+		return err
+	}
+
+	logrus.Debugf("successfully queried list of device ids from RSP Controller")
+
+	for _, deviceId := range *deviceIds {
+		go ForceRefreshSensorInfo(deviceId)
+	}
+
 	return nil
+}
+
+func ForceRefreshSensorInfo(deviceId string) {
+	var err error
+	var info *jsonrpc.SensorBasicInfo
+
+	for err != nil || info == nil {
+		if info, err = QueryBasicInfo(deviceId); err != nil {
+			logrus.Errorf("Error trying to get sensor info for device %v, %v", deviceId, err)
+			time.Sleep(5 * time.Second)
+		}
+	}
+
+	rsp := NewRSP(deviceId)
+	rsp.Personality = Personality(info.Personality)
+	rsp.Aliases = info.Aliases
+	rsp.FacilityId = info.FacilityId
+	sensors[deviceId] = rsp
+	logrus.Infof("got rsp info: %+v", rsp)
 }
 
 // QueryBasicInfo makes a call to the EdgeX command service to request the RSP-Controller
@@ -120,6 +146,12 @@ func ExecuteSensorCommand(deviceId string, commandName string) (*models.Reading,
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, errors.Errorf("Http call returned status code %v: %v  for url: %s", resp.StatusCode, resp.Status, url)
+	} else {
+		logrus.Debugf("Http call returned status code %v: %v  for url: %s", resp.StatusCode, resp.Status, url)
 	}
 
 	defer resp.Body.Close()
