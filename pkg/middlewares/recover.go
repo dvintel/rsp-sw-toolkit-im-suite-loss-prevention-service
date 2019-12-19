@@ -14,7 +14,7 @@ import (
 	"runtime/debug"
 
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/web"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/pkg/web"
 )
 
 // Recover middleware

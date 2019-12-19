@@ -14,7 +14,7 @@ import (
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/web"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/pkg/web"
 )
 
 // max size limit of body 16MB

@@ -16,6 +16,14 @@ One of the following:
 - `rsp-sw-toolkit-gw`
 - `inventory-suite`
 
+#### Warnings
+> ![](docs/images/alert-48.png) **Warning**
+> 
+> **This software has the potential to collect sensitive data including
+> CCTV recordings, Inventory Data, etc.
+> Please read carefully our [Privacy Compliance](https://github.com/intel/rsp-sw-toolkit-im-suite-inventory-suite-gsg#privacy-compliance) 
+> and consult our [Hardening Guide](https://github.com/intel/rsp-sw-toolkit-im-suite-inventory-suite-gsg#hardening-your-installation) for more information.**
+
 ### Build Instructions
 
 #### Sensor Configuration
@@ -36,12 +44,8 @@ Modify the [`secrets/configuration.json`](secrets/configuration.json) with your 
 #### Build
 Compile the Go source code, create the docker images, and start the docker swarm services
 
-> :warning: **_Notice_**
->
-> Replace `GIT_TOKEN=...` with your access token generated from `github.impcloud.net` like so: `GIT_TOKEN=abc34f2323fcda2ad23`
-
 ```bash
-sudo GIT_TOKEN=... make iterate
+sudo make iterate
 ```
 
 > The first time you run this it may take quite some time. Grab some :coffee:.

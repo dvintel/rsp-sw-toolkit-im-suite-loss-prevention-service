@@ -8,9 +8,9 @@ package webserver
 
 import (
 	"github.com/gorilla/mux"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/middlewares"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/web"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/pkg/middlewares"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/pkg/web"
 )
 
 // Route struct holds attributes to declare routes

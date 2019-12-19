@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"github.com/edgexfoundry/app-functions-sdk-go/appcontext"
 	"github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/notification"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/camera"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/sensor"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/app/notification"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/pkg/camera"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/pkg/sensor"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/helper"
 )
 
 const (
