@@ -13,16 +13,18 @@ One of the following:
 - `git`
 - `docker`
 - `docker-compose`
-- `rsp-sw-toolkit-gw`
-- `inventory-suite`
+- [rsp-sw-toolkit-gw](https://github.com/intel/rsp-sw-toolkit-installer)
+- [inventory-suite](https://github.com/intel/rsp-sw-toolkit-im-suite-inventory-suite)
 
 #### Warnings
 > ![](docs/images/alert-48.png) **Warning**
 > 
 > **This software has the potential to collect sensitive data including
 > CCTV recordings, Inventory Data, etc.
-> Please read carefully our [Privacy Compliance](https://github.com/intel/rsp-sw-toolkit-im-suite-inventory-suite-gsg#privacy-compliance) 
-> and consult our [Hardening Guide](https://github.com/intel/rsp-sw-toolkit-im-suite-inventory-suite-gsg#hardening-your-installation) for more information.**
+> Please read carefully our [Privacy Compliance](#privacy-compliance) 
+> and consult RSP Inventory Suite's
+> [Hardening Guide](https://github.com/intel/rsp-sw-toolkit-im-suite-inventory-suite#hardening-your-installation)
+> for more information.**
 
 ### Build Instructions
 
@@ -68,3 +70,12 @@ The web interface is integrated with the Angular [`Demo UI`](http://localhost:42
 - SKU matches `skuFilter` wildcard from [`secrets/configuration.json`](secrets/configuration.json) (`"*"` matches everything)
 - EPC matches `epcFilter` wildcard from [`secrets/configuration.json`](secrets/configuration.json) (`"*"` matches everything)
 - Another recording is not currently in progress
+
+## Privacy Compliance
+This software includes functionality which allows you to record video clips
+to a persisted storage device and display them on a basic website. Due to the sensitive nature of
+this data, it is imperative that you harden your installation in order
+to protect yourselves from potential security and privacy concerns.
+
+We have [some basic guidelines for you to follow](https://github.com/intel/rsp-sw-toolkit-im-suite-inventory-suite#hardening-your-installation), but ultimately it is up to **YOU** 
+to protect your installation and data.
