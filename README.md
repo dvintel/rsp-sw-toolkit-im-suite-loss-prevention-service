@@ -1,4 +1,6 @@
 # Loss Prevention Service
+[![license](https://img.shields.io/badge/license-Apache%20v2.0-blue.svg)](LICENSE)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/intel/rsp-sw-toolkit-im-suite-loss-prevention-service)
 
 ## Getting Started
 
@@ -13,8 +15,8 @@ One of the following:
 - `git`
 - `docker`
 - `docker-compose`
-- [rsp-sw-toolkit-gw](https://github.com/intel/rsp-sw-toolkit-installer)
-- [inventory-suite](https://github.com/intel/rsp-sw-toolkit-im-suite-inventory-suite)
+- [RSP Controller](https://github.com/intel/rsp-sw-toolkit-installer)
+- [RSP Inventory Suite](https://github.com/intel/rsp-sw-toolkit-im-suite-inventory-suite)
 
 #### Warnings
 > ![](docs/images/alert-48.png) **Warning**
@@ -70,6 +72,9 @@ The web interface is integrated with the Angular [`Demo UI`](http://localhost:42
 - SKU matches `skuFilter` wildcard from [`secrets/configuration.json`](secrets/configuration.json) (`"*"` matches everything)
 - EPC matches `epcFilter` wildcard from [`secrets/configuration.json`](secrets/configuration.json) (`"*"` matches everything)
 - Another recording is not currently in progress
+
+### Recordings
+Video clips are stored to a docker volume
 
 ## Privacy Compliance
 This software includes functionality which allows you to record video clips
