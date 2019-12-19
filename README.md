@@ -56,7 +56,9 @@ sudo make iterate
 
 
 ### Web Interface
-The web interface is integrated with the Angular [`Demo UI`](http://localhost:4200/loss-prevention). It provides a way to view previous recordings including any people/objects detected. Recordings can also be deleted from the web ui.
+The web interface is integrated with the Angular [`Demo UI`](http://localhost:4200/loss-prevention). 
+It provides a way to view previous recordings including any people/objects detected. 
+Recordings can also be deleted from the web ui.
 
 ### Application Flow
 - Make REST calls to the `EdgeX Command Service` to retrieve information about the RSP sensors. 
@@ -74,7 +76,8 @@ The web interface is integrated with the Angular [`Demo UI`](http://localhost:42
 - Another recording is not currently in progress
 
 ### Recordings
-Video clips are stored to a docker volume
+Video clips are stored to a docker volume mounted at `./recordings` and served
+using an `nginx` docker container.
 
 ## Privacy Compliance
 This software includes functionality which allows you to record video clips
