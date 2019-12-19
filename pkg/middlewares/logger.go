@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/web"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/pkg/web"
 
 	log "github.com/sirupsen/logrus"
 )

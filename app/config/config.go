@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/configuration"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/configuration"
 	"regexp"
 	"strconv"
 	"strings"

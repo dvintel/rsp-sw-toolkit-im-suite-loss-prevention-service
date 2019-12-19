@@ -6,7 +6,7 @@
 
 package webserver
 
-import "github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
+import "github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/app/config"
 
 type RecordingsResponse struct {
 	BaseUrl     string          `json:"base_url"`

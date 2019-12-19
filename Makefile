@@ -34,10 +34,6 @@ ifndef GIT_COMMIT
 GIT_COMMIT := $(shell git rev-parse HEAD)
 endif
 
-ifdef JENKINS_URL
-GIT_TOKEN := $$(sed -nr 's|https://([^:]+):.+|\1|p' ~/.git-credentials)
-endif
-
 # The default flags to use when calling submakes
 GNUMAKEFLAGS = --no-print-directory
 
@@ -67,7 +63,6 @@ build/docker: Dockerfile Makefile $(GO_FILES) $(RES_FILES) | build/
 	docker build \
 		$(PROXY_ARGS) \
 		$(EXTRA_BUILD_ARGS) \
-		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
 		-f Dockerfile \
 		--label "git_commit=$(GIT_COMMIT)" \
 		-t $(FULL_IMAGE_TAG) \
@@ -145,7 +140,6 @@ test:
 	docker build --rm \
 		$(PROXY_ARGS) \
 		$(EXTRA_BUILD_ARGS) \
-		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
 		--build-arg TEST_COMMAND="$(TEST_ENV_VARS) NANOSECONDS=$$(date +%s%N) GOOS=linux GOARCH=amd64 CGO_ENABLED=1 GO111MODULE=auto go test ./... -v $(args)" \
 		--target testing \
 		-f Dockerfile \

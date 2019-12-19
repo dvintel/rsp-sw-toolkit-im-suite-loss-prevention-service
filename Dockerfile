@@ -37,19 +37,11 @@ RUN printf '#!/bin/sh\nexec "$@"\n' > /bin/sudo && \
     cp -a /tmp/opencv/opencv-*/data /data && \
     chown -R 2000:2000 /data
 
-FROM gocv-builder as gocv-impcloud-builder
-# Authentication needed to pull git modules from github.impcloud.net
-ARG GIT_TOKEN
-RUN git config --global credential.helper store && \
-    set +x && \
-    echo "https://$GIT_TOKEN:x-oauth-basic@github.impcloud.net" > ~/.git-credentials
-
-FROM gocv-impcloud-builder as app-builder
+FROM gocv-builder as app-builder
 # Download go modules first so they can be cached for faster subsequent builds
 WORKDIR /app
 COPY go.mod go.mod
-RUN go mod download || \
-    (printf "\n\n\e[31mThere was an error downloading go module dependencies.\nPlease make sure you set \e[1mGIT_TOKEN\e[22;24m to your git auth token!\e[0m\n\n"; exit 1)
+RUN go mod download
 # Pre-compile gocv lib to make subsequent builds faster
 RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=1 GO111MODULE=auto go install -v -x gocv.io/x/gocv 2>&1
 

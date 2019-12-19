@@ -8,13 +8,13 @@ package main
 
 import (
 	"github.com/edgexfoundry/app-functions-sdk-go/pkg/transforms"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/lossprevention"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/notification"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/webserver"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/camera"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/jsonrpc"
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/sensor"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/app/lossprevention"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/app/notification"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/app/webserver"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/pkg/camera"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/pkg/jsonrpc"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/pkg/sensor"
 	"os"
 	"strings"
 	"time"
@@ -25,8 +25,8 @@ import (
 
 	"github.com/edgexfoundry/app-functions-sdk-go/appcontext"
 	"github.com/edgexfoundry/app-functions-sdk-go/appsdk"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
-	reporter "github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics-influxdb"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/go-metrics"
+	reporter "github.com/intel/rsp-sw-toolkit-im-suite-utilities/go-metrics-influxdb"
 )
 
 const (

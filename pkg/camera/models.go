@@ -7,7 +7,7 @@
 package camera
 
 import (
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/app/config"
 	"gocv.io/x/gocv"
 	"image"
 	"image/color"

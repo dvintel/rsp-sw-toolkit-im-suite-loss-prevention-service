@@ -7,7 +7,7 @@
 package sensor
 
 import (
-	"github.impcloud.net/RSP-Inventory-Suite/loss-prevention-service/pkg/jsonrpc"
+	"github.com/intel/rsp-sw-toolkit-im-suite-loss-prevention-service/pkg/jsonrpc"
 	"strconv"
 )
 

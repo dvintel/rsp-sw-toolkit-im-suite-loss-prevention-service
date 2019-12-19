@@ -9,7 +9,7 @@ package main
 import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/go-metrics"
 	golog "log"
 	"strings"
 )
