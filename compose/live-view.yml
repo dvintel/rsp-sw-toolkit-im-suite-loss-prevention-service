@@ -12,7 +12,7 @@ services:
       liveView: "true"
       fullscreenView: "true"
       showVideoDebugStats: "true"
-      DISPLAY: "unix:0"
+      DISPLAY: "unix${DISPLAY}"
 
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
